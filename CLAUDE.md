@@ -42,7 +42,12 @@ def rank(candidates: list[Candidate], state: DialogState) -> list[Candidate]:
 # Evaluator entry point: python3 -m evaluator.local_evaluator → results.json
 
 ## Hard rules
-- 10-turn cap is enforced inside update_state — never worked around elsewhere.
+- 10-turn cap is enforced inside update_state — exceeding it is a forced
+  termination AND a zero score for that session, not just a worse metric.
+  Never worked around elsewhere.
+- Local scoring is against the 200 public dev sessions only — the organizer
+  holds 800 additional hidden sessions for final scoring, with different
+  users and products, so don't over-tune to quirks of the visible 200.
 - evaluator/ and data/ are read-only. Nobody edits the scorer or the catalog
   to make a number move.
 - Always re-run the evaluator after touching retrieve() or rank() — an
