@@ -39,7 +39,7 @@ def rank(candidates: list[Candidate], state: DialogState) -> list[Candidate]:
 # formats the result. Anyone touching this file flags it in the team
 # channel first — it's the one place all three seats' work threads together.
 
-# Evaluator entry point: python3 -m evaluator.local_evaluator → results.json
+# Evaluator entry point: python3 -m evaluator.local_evaluator
 
 ## Hard rules
 - 10-turn cap is enforced inside update_state — exceeding it is a forced
@@ -50,8 +50,8 @@ def rank(candidates: list[Candidate], state: DialogState) -> list[Candidate]:
   users and products, so don't over-tune to quirks of the visible 200.
 - evaluator/ and data/ are read-only. Nobody edits the scorer or the catalog
   to make a number move.
-- Always re-run the evaluator after touching retrieve() or rank() — an
-  unscored change isn't progress yet.
+- Always re-run the evaluator after touching retrieve(), update_state(),
+  or rank() — an unscored change isn't progress yet.
 - Never two agents touch the same file at once.
 - starter/agent.py is shared orchestration code — flag changes there in the
   team channel first, same as a signature change.
