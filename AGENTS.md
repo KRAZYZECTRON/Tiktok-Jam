@@ -7,14 +7,37 @@ scored by the local evaluator against Hit@10 / MRR / MTTC.
 ## Frozen contract — do not change a signature here without posting it
 ## in the team channel first.
 
-def retrieve(query: str, state: DialogState) -> list[Candidate]:
-    """Seat 2. Hybrid BM25 + dense retrieval over the catalog."""
+# starter/state.py — shared dataclasses
+@dataclass
+class Candidate:
+    parent_asin: str
+    score: float | None = None
 
-def update_state(state: DialogState, message: str) -> DialogState:
-    """Seat 3. Slot accumulation, intent override, 10-turn budget, clarification triggers."""
+@dataclass
+class DialogState:
+    session_id: str
+    user_profile: dict
+    catalog_path: str = "data/catalog.jsonl"
+    turn: int = 0
+    messages: list[str] = field(default_factory=list)
 
+# starter/retrieval.py — Seat 2
+def retrieve(query: str, state: DialogState, top_k: int) -> list[Candidate]:
+    """Hybrid BM25 + dense retrieval over the catalog."""
+
+# starter/dialog.py — Seat 3
+def update_state(state: DialogState, message: str, turn: int) -> DialogState:
+    """Slot accumulation, intent override, 10-turn budget, clarification triggers."""
+
+# starter/ranking.py — Seat 1
 def rank(candidates: list[Candidate], state: DialogState) -> list[Candidate]:
-    """Seat 1. LLM semantic re-ranking over the top-N from retrieve()."""
+    """LLM semantic re-ranking over the top-N from retrieve()."""
+
+# starter/agent.py — shared orchestrator (not owned by one seat)
+# Agent.reset() builds the initial DialogState from user_profile.
+# Agent.respond() just calls update_state() -> retrieve() -> rank() and
+# formats the result. Anyone touching this file flags it in the team
+# channel first — it's the one place all three seats' work threads together.
 
 # Evaluator entry point: python3 -m evaluator.local_evaluator → results.json
 
@@ -25,6 +48,8 @@ def rank(candidates: list[Candidate], state: DialogState) -> list[Candidate]:
 - Always re-run the evaluator after touching retrieve() or rank() — an
   unscored change isn't progress yet.
 - Never two agents touch the same file at once.
+- starter/agent.py is shared orchestration code — flag changes there in the
+  team channel first, same as a signature change.
 - Only Seat 1 merges into main. Everyone else proposes via PR from their branch.
 - Each branch's evaluator run writes its own output file (results_retrieval.json,
   results_dialog.json, …) — never results.json — until it's merged into main.
