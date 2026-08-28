@@ -34,3 +34,7 @@ class DialogState:
     query: str = ""
     ask_attribute: str | None = None
     exhausted_attributes: set[str] = field(default_factory=set)
+    # exhausted_turns: how many turns in a row the shopper has had nothing left
+    #   to disclose. agent.py uses it to slide the returned window down the
+    #   ranked list, so a dead turn shows the next ten instead of the same ten.
+    exhausted_turns: int = 0

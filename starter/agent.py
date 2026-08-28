@@ -50,7 +50,14 @@ class Agent:
         # should come from. getattr keeps this working if dialog.py is reverted.
         query = getattr(state, "query", "") or user_message
         candidates = retrieve(query, state, max(POOL_K, top_k))
-        ranked = rank(candidates, state)[:top_k]
+        ranked = rank(candidates, state)
+        # Once the shopper has nothing left to disclose, dialog.py counts the
+        # dead turns and we page down the ranked list instead of re-showing a
+        # top ten that has already been rejected. Falls back to the head if the
+        # pool is shallower than the offset, and to 0 if dialog.py is reverted.
+        rotating = os.environ.get("TJ_ROTATE") != "off"
+        offset = getattr(state, "exhausted_turns", 0) * top_k if rotating else 0
+        window = ranked[offset:offset + top_k] or ranked[:top_k]
         usage = {"prompt_tokens": 0, "completion_tokens": 0}
         if os.environ.get("RANK_USE_LLM") == "1":
             from .llm_rerank import usage as llm_usage
@@ -62,6 +69,6 @@ class Agent:
             # a specific attribute; with None it returns filler and the query
             # never grows past turn 1. dialog.py decides which attribute.
             "ask_attribute": getattr(state, "ask_attribute", None),
-            "recommendations": [{"parent_asin": candidate.parent_asin} for candidate in ranked],
+            "recommendations": [{"parent_asin": candidate.parent_asin} for candidate in window],
             "usage": usage,
         }

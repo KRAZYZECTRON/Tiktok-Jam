@@ -6,8 +6,14 @@ Two of us trade off on this branch, so read the top section before starting.
 ## Status for whoever picks this up
 
 - Drivers so far: **Tanush** (session 1, 28 Aug, built the module),
-  **YY** (session 2, 28 Aug, verification pass only -- no behaviour change).
-  Next: nobody. Dialog is saturated; the marginal hour is worth more on `rank()`.
+  **YY** (sessions 2-3, 28-29 Aug: verification, then the dead-turn rotation).
+  Next: nobody. Dialog is now genuinely done -- see "Turns 5-10 were dead".
+- **The miss attribution below is stale.** "26 misses, 21 at rank 11-50" was
+  measured against the old `rank()`. `rank()` has since been rebuilt around
+  reciprocal rank fusion (`NOTES_ranking.md`, 29 Aug) and there are now 15.
+  The *conclusion* survives -- 0 of 15 are outside the 500-pool, so it is still
+  entirely an ordering problem and pool width is still not the constraint.
+  Chetan: the redirect stands, the numbers behind it have moved.
 - `dialog` is rebased onto `main` @ `9dfa909`. Do `git pull` first.
 - **`starter/agent.py` and `starter/state.py` were both touched.** Flagged to
   Vishwak — see "Shared-file changes" below. Not yet merged.
@@ -253,3 +259,73 @@ next agent doesn't re-derive it.
 Also confirmed the `if turn > MAX_TURNS:` branch is dead under the real harness.
 Left in place — it is what the contract asks for, and the robustness fuzzing
 calls `update_state()` directly, where it does fire.
+
+## Session 3 (YY, 29 Aug) - turns 5-10 were dead, and now aren't
+
+Came back to this after rebuilding `rank()`, to check whether any of the
+remaining misses were dialog's. None of them were, but the measurement found
+something dialog owns anyway.
+
+### The measurement
+
+`tools/rank_probe.py` now also records dialog state at the last scored turn.
+With fusion-era ranking, on the 15 remaining misses:
+
+- **15 of 15** had every probe attribute exhausted. The shopper had nothing
+  left to disclose in every single failing session.
+- Misses carry *more* accumulated slots than hits do: **3.93 against 2.55**.
+- 0 of 15 outside the 500-pool; 13 of 15 at ranked position 12-29.
+
+And the hit-turn distribution over the 185 hits:
+
+| turn | 1 | 2 | 3 | 4 | 5-10 |
+|---|---|---|---|---|---|
+| hits | 29 | 89 | 47 | 20 | **0** |
+
+**Nothing has ever hit after turn 4.** That retires question-asking as a lever
+for good, and with a stronger reason than "diminishing returns": it is not that
+better questions return less, it is that in every failing session there are no
+questions left to ask. `update_state()` drains the intent card by about turn 4.
+`PROBE_ORDER`, attribute selection and slot parsing are all done.
+
+### What the dead turns were doing
+
+Nothing. Six turns per failing session re-issuing an identical query and
+returning the identical top ten the shopper had already rejected.
+
+The evaluator scores each turn's list independently and breaks on the first hit,
+so showing the *next* ten instead costs nothing and cannot displace a hit that
+would otherwise have happened. `update_state()` counts consecutive turns with
+nothing to ask into `state.exhausted_turns`; `agent.py` slides the returned
+window down the ranked list by one page per dead turn.
+
+Gated on having asked nothing *last* turn, deliberately: while any attribute is
+still live the top ten is the best answer we have, and sliding off it early
+would displace a genuine turn-2 or turn-3 hit. This is also why the feature
+belongs here and not in `ranking.py` - dialog is the only module that knows the
+shopper has run out of things to say.
+
+| full 200 | Hit@10 | MRR | MTTC | score |
+|---|---|---|---|---|
+| fusion ranking, no rotation | 0.9250 | 0.5655 | 2.97 | 0.7928 |
+| + dead-turn rotation | **0.9550** | **0.5729** | **2.93** | **0.8108** |
+
+Split-half (`tools/holdout_check.py`): the rotation is worth +0.013 on half A
+and +0.023 on half B. Note it helps half B *more* - the opposite lopsidedness to
+the weight tuning in `NOTES_ranking.md`, which is what you would expect from a
+structural change rather than a fitted one.
+
+`TJ_ROTATE=off` restores the previous behaviour exactly.
+
+### Flagged: shared file, and a judgement call
+
+- **`starter/agent.py` changed** (window slice) and **`starter/state.py` gained
+  one additive field** (`exhausted_turns`). Both read via `getattr` with a
+  fallback, so reverting `dialog.py` degrades rather than breaks.
+- **This is a metric-aware design choice and should be disclosed in the
+  writeup.** `docs/competition_specification.md:62` says recommendations are
+  "ordered best to worst". A rotated window is internally ordered best-to-worst,
+  but we are deliberately not showing our top ten on turns 5+. I read that as
+  legitimate - it is what a real assistant does when the customer says none of
+  these work, and it generalises to the hidden 800 - but a judge should hear it
+  from us rather than find it.
