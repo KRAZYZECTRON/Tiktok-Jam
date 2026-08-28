@@ -3,6 +3,11 @@ __pycache__/
 .DS_Store
 .env
 results.json
+# per-branch and subset evaluator output (CLAUDE.md: never share results.json)
+results_*.json
+# release assets, re-downloadable from the organizer's participant-kit tag
+catalog.jsonl.gz
+SHA256SUMS
 data/catalog.jsonl
 data/releases/
 # Organizer-only code, private evaluation data, manifests, and build reports.
