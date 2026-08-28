@@ -150,15 +150,75 @@ Two consequences:
 - Don't quote this as "we solved dialog". Quote it as the disclosure loop being
   worth ~4x, which it is.
 
-## What I'd try next
+## Where the remaining 26 misses actually are — for Seat 1 and Seat 2
 
-- **`intent_override` is still the weakest scenario.** Hits before the override
-  turn do not count at all (`if override_applied and target in ranked`), so its
-  MTTC floor is 3–4. Worth checking how much of the remaining gap is that floor
-  versus genuinely missed targets.
-- **Probe order after `"other"` is spent is untested.** `PROBE_ORDER` is a
-  reasoned guess, not a measured ranking. Low value — `"other"` drains the card
-  in ~2 turns and the probes rarely fire.
-- **Nothing here is tuned to the visible 200** beyond the simulator's own
-  mechanics, which is deliberate. Resist adding anything that keys off specific
-  products or categories.
+Replayed all 26 missed sessions keeping the full 500-pool at every turn, to
+separate "the target was never retrievable" from "it was retrieved and then
+ordered badly". These are different people's problems.
+
+| | count | share |
+|---|---|---|
+| never in the 500-pool (retrieval ceiling) | **0** | 0% |
+| in pool, ranked 11–50 after `rank()` | 21 | 80.8% |
+| in pool, ranked >50 after `rank()` | 5 | 19.2% |
+
+**Every single remaining miss is an ordering problem, not a recall problem.**
+Mean slots accumulated in a missed session: 3.85, so these are not sessions
+where the shopper told us nothing.
+
+This retires the number the whole team has been designing around. The
+`recall@500 = 0.860` ceiling in `NOTES_ranking.md`/`SCOREBOARD.md` was measured
+**on the turn-1 query**. On the accumulated query the pool contains the target
+in 26 of 26 missed sessions. Dense embeddings would now have to earn their
+keep by improving *ordering inside the pool*, not by widening recall — worth
+Chetan knowing before he spends the remaining hours on the pool.
+
+### Stage-A re-ranking is now a wash
+
+Measured with Vishwak's own `TJ_RANK=off` flag, dialog changes active, full 200:
+
+| | Hit@10 | MRR | MTTC | score |
+|---|---|---|---|---|
+| `rank()` on | 0.8700 | 0.5314 | 3.47 | 0.7450 |
+| `rank()` off (BM25 pool order) | 0.8650 | 0.5544 | 3.53 | **0.7482** |
+
+Session-level: 12 sessions hit *only* with ranking on, 11 hit *only* with it
+off, 162 hit either way. So stage A is not broken and should not be deleted —
+it is close to break-even, helping boundary (1.000 vs 0.900) and browsing,
+costing buying MRR (0.478 vs 0.532) and intent_override (0.800 vs 0.833).
+
+The likely reason is the same one that applied to Chetan's `bm25_limit`
+multipliers after the pool went to 500: **stage A's weights were tuned against a
+one-turn query.** `BONUS_MATERIAL`, `BONUS_COLOR` and `WEIGHT_CONSTRAINT` were
+carrying information that the query itself now carries directly — the material
+and colour are literally in the query text, so BM25 already scores them, and
+bonusing them again double-counts. This is a re-tune against the new regime, not
+a rewrite. It is Seat 1's file and Seat 1's call; flagged, not touched.
+
+## What I'd try next (dialog)
+
+Dialog itself is close to saturated — every scenario now hits about as early as
+its structure allows (buying mean turn 1.93, browsing 2.22, override 3.66
+against a hard floor of 3.5, since hits before the override turn are not
+counted). The remaining ideas are small:
+
+- **Boilerplate slots dilute the query.** Constraints lifted from `details` are
+  often near-universal ("Imported", "Machine wash cold"). They eat into
+  `retrieve()`'s 40-term budget and add flat `WEIGHT_CONSTRAINT` mass in
+  `rank()`. Suppressing them needs IDF, which lives in `ranking.py` — so this is
+  better done as term weighting on Seat 1's side than as a stoplist here, which
+  would just be overfitting to the visible 200.
+- **`PROBE_ORDER` is a reasoned guess, not a measured ranking.** Low value:
+  `"other"` drains the card in ~2 turns and the probes rarely fire.
+- **Nothing here keys off specific products or categories**, deliberately, and it
+  should stay that way — the hidden 800 use different ones.
+
+## Robustness
+
+Fuzzed `update_state()` with 13 malformed inputs (empty, whitespace-only, no
+lead-in, truncated payloads, empty `;`-separated parts, 5000-char messages,
+unicode, 200 constraints in one reply) — all handled, no exceptions. This
+matters because `evaluator.evaluate()` swallows any exception into an empty
+recommendation list, so a crash would show up as a silent zero rather than an
+error. Turn cap verified to hold at 10 when `update_state` is called 13 times,
+with `ask_attribute` going `None` at the cap. `user_profile=None` handled.
