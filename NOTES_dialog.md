@@ -5,7 +5,9 @@ Two of us trade off on this branch, so read the top section before starting.
 
 ## Status for whoever picks this up
 
-- Driver so far: **Tanush** (session 1, 28 Aug). Next: YY.
+- Drivers so far: **Tanush** (session 1, 28 Aug, built the module),
+  **YY** (session 2, 28 Aug, verification pass only -- no behaviour change).
+  Next: nobody. Dialog is saturated; the marginal hour is worth more on `rank()`.
 - `dialog` is rebased onto `main` @ `9dfa909`. Do `git pull` first.
 - **`starter/agent.py` and `starter/state.py` were both touched.** Flagged to
   Vishwak — see "Shared-file changes" below. Not yet merged.
@@ -222,3 +224,32 @@ matters because `evaluator.evaluate()` swallows any exception into an empty
 recommendation list, so a crash would show up as a silent zero rather than an
 error. Turn cap verified to hold at 10 when `update_state` is called 13 times,
 with `ask_attribute` going `None` at the cap. `user_profile=None` handled.
+
+## Session 2 (YY, 28 Aug) — verification, and one comment correction
+
+Picked this up to build on it, and did not need to. Reproduced Tanush's headline
+independently on a clean checkout with the released catalog (sha256
+`07fd1426…`): **0.8700 / 0.531377 / 3.47 / 0.745013**, every per-scenario figure
+matching. The measurements in this file are sound.
+
+The only change is a comment block, and the score is bit-identical after it.
+
+**Why the comment was worth changing.** `MAX_TURNS`'s docstring repeated the
+contract's claim that exceeding the cap is "a forced termination and a zero for
+that session, not merely a worse metric." Checked against
+`evaluator/local_evaluator.py`: the harness owns the loop
+(`for turn in range(1, MAX_TURNS + 1)`), so the agent is never called an 11th
+time and *cannot* exceed the cap. A session that runs out scores `hit=False`,
+`reciprocal_rank=0.0`, and contributes `MAX_TURNS + 1` to MTTC — precisely "a
+worse metric."
+
+This matters beyond pedantry because it points the wrong way. The loop `break`s
+on the first hit, so an unused turn is free. Any logic written to terminate
+early or withhold recommendations in order to "stay safe" strictly loses points.
+The false claim originates in `CLAUDE.md`/`AGENTS.md` and had propagated into
+this module; it is being fixed at the source in the same batch of work, so the
+next agent doesn't re-derive it.
+
+Also confirmed the `if turn > MAX_TURNS:` branch is dead under the real harness.
+Left in place — it is what the contract asks for, and the robustness fuzzing
+calls `update_state()` directly, where it does fire.

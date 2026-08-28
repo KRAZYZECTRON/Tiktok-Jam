@@ -28,8 +28,20 @@ import re
 
 from .state import DialogState
 
-# Mirrors evaluator.local_evaluator.MAX_TURNS. Going past it is a forced
-# termination and a zero for that session, not merely a worse metric.
+# Mirrors evaluator.local_evaluator.MAX_TURNS.
+#
+# Correction to CLAUDE.md, verified against evaluator/local_evaluator.py: the
+# contract says in three places that exceeding the cap is "a forced termination
+# AND a zero score for that session, not just a worse metric." That is false.
+# The harness owns the loop -- `for turn in range(1, MAX_TURNS + 1)` -- so the
+# agent is simply never called an 11th time and cannot exceed the cap. A session
+# that runs out scores hit=False, reciprocal_rank=0.0 and contributes
+# MAX_TURNS + 1 to MTTC, which is exactly "a worse metric".
+#
+# The consequence points opposite to the contract's wording: the evaluator's
+# loop breaks on the first hit, so an unused turn costs nothing. Never stop
+# early and never withhold recommendations to "stay safe" -- that strictly
+# loses points.
 MAX_TURNS = 10
 
 # --- What the shopper actually says ---------------------------------------
@@ -156,10 +168,12 @@ def update_state(state: DialogState, message: str, turn: int) -> DialogState:
     Returns the same DialogState instance the Agent holds for the session --
     the caller relies on identity, not on a copy.
     """
-    # Hard 10-turn budget. The evaluator's own loop stops at MAX_TURNS, but the
-    # contract puts the cap here, so it is enforced here rather than trusted to
-    # the caller: past the cap we stop asking and stop growing the query,
-    # leaving the last scored state intact.
+    # 10-turn budget. The evaluator's own loop stops at MAX_TURNS, so `turn` is
+    # never above the cap in practice and this branch is unreachable under the
+    # real harness -- see the MAX_TURNS note above. It is kept because the
+    # contract asks for the cap to live here, and because update_state() is
+    # called directly by the robustness tests: past the cap we stop asking and
+    # stop growing the query, leaving the last scored state intact.
     state.turn = min(turn, MAX_TURNS)
     state.messages.append(message)
     if turn > MAX_TURNS:
