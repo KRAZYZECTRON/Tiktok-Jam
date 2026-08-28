@@ -43,7 +43,13 @@ class Agent:
         if session_id not in self._states:
             raise RuntimeError("reset must be called before respond")
         state = update_state(self._states[session_id], user_message, turn)
-        candidates = retrieve(user_message, state, max(POOL_K, top_k))
+        # After turn 1 the shopper's message is usually fixed filler ("I don't
+        # have an additional preference for color."), so retrieving on it builds
+        # the pool out of noise. dialog.py composes the accumulated query --
+        # category plus everything disclosed so far -- and that is what the pool
+        # should come from. getattr keeps this working if dialog.py is reverted.
+        query = getattr(state, "query", "") or user_message
+        candidates = retrieve(query, state, max(POOL_K, top_k))
         ranked = rank(candidates, state)[:top_k]
         usage = {"prompt_tokens": 0, "completion_tokens": 0}
         if os.environ.get("RANK_USE_LLM") == "1":
@@ -52,7 +58,10 @@ class Agent:
             usage = llm_usage()
         return {
             "message": "Here are the closest matches I found.",
-            "ask_attribute": None,
+            # The simulated shopper only discloses a constraint when asked about
+            # a specific attribute; with None it returns filler and the query
+            # never grows past turn 1. dialog.py decides which attribute.
+            "ask_attribute": getattr(state, "ask_attribute", None),
             "recommendations": [{"parent_asin": candidate.parent_asin} for candidate in ranked],
             "usage": usage,
         }
