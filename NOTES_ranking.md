@@ -114,16 +114,67 @@ this stage**, and roughly a 2x headroom over where we are now.
 - Real token counts now flow back through `agent.py`'s `usage` field instead of
   the hardcoded zeros.
 
-**Not yet scored** — model was still pulling. Next session: run
-`RANK_USE_LLM=1 py -m tools.quick_eval --n 80`, compare against stage A on the
-same subset, and only then a full 200 run.
+### Scored — and it failed first
+
+First honest run, same 80 sessions as stage A:
+
+| n=80 | Hit@10 | MRR | MTTC | score |
+|------|--------|-----|------|-------|
+| stage A | 0.2125 | 0.1242 | 9.06 | 0.1822 |
+| stage B, replacing the order | 0.1625 | 0.0914 | 9.48 | 0.1392 |
+
+A clear regression. Two causes, both found by diagnostic:
+
+1. **The model was told the wrong thing.** `_need_text()` had its own copy of
+   "pull the useful text out of the messages", built on `_payload()`, which eats
+   the turn-1 category. So the model was asked to shortlist for a need of
+   `"leather."` with no idea the shopper wanted handbags — and for
+   `"Underwear Briefs"` with no gender, where it duly returned ladies' briefs
+   against a men's target. Same bug class as the stage-A one above, second
+   occurrence, so both stages now share one `split_dialog()`. **If you add a
+   third consumer of the dialog text, route it through that function.**
+
+2. **Replacing beats nothing; blending beats something.** Over the sessions
+   where the target was already inside stage A's top 50, the model's ordering
+   moved it up 6, down 12, and knocked it out of the top 10 six times. It is a
+   worse judge than stage A's scoring, but a useful *second opinion*. Its
+   ranking is now a bonus added to stage A's score, scaled to the shortlist's
+   score spread (`RANK_LLM_WEIGHT`, default 0.3). Knocked-out went 6 → 1.
+
+| full 200 | Hit@10 | MRR | MTTC | score |
+|----------|--------|-----|------|-------|
+| stage A | 0.2050 | 0.1045 | 9.08 | 0.1722 |
+| + stage B blended | 0.2300 | 0.1099 | 8.83 | 0.1914 |
+
+~2 s/session on the GPU, 333k prompt + 8.7k completion tokens for 200 sessions.
+
+### …and it stays off by default anyway
+
+Reading `docs/submission_rules.md` *after* building it: official scoring may run
+with **network disabled, CPU-only, under a timeout**, and submissions may not
+depend on undeclared external services. Ollama on `localhost:11434` will not be
+there. The fallback means we lose nothing when it is absent — we just quietly
+score 0.1722 instead of 0.1914.
+
+So stage B is a demo/writeup asset, not a scoring strategy, and
+**`main`'s real number is 0.1722**. Full reasoning in `SCOREBOARD.md`.
+
+Lesson worth generalising for the team: read the submission constraints *before*
+choosing an architecture, not after. The same question applies to Seat 2's
+`sentence-transformers` leg — local weights are more defensible than an HTTP
+service, but they still have to be bundled and CPU-fast.
 
 ---
 
 ## Open questions / next
 
-- Stage B's real numbers, and whether 50 is the right shortlist depth (recall@100
-  is 0.645 — a two-pass rerank could reach for it).
+- **Confirm the scoring environment before anyone builds further on a model.**
+  Ask the organizer (or the Fri webinar) whether final scoring runs offline and
+  CPU-only. The answer decides whether stage B and Seat 2's embeddings are worth
+  anything at all, and it is one question.
+- Stage A tuning is the cheap, safe headroom: the weights (`WEIGHT_CATEGORY`,
+  the material/colour/budget bonuses) were set by reasoning, not swept. A short
+  grid search over the full 200 is ~30 s a run.
 - `ask_attribute` is still hardcoded `None` in `agent.py`. The simulated shopper
   only discloses new constraints when asked a specific attribute — until Seat 3
   ships that, every follow-up turn is filler and the query profile never grows
