@@ -68,16 +68,57 @@ FIELD_WEIGHTS = {
     "description": 1.0,
 }
 
+def _tunable(name: str, default: float) -> float:
+    """A weight, overridable from the environment so a sweep needs no edit.
+
+    Same convention as TJ_RANK / TJ_POOL_K / RANK_LLM_WEIGHT elsewhere: the
+    default is the shipped value, so an unset environment behaves exactly as if
+    these were plain constants.
+    """
+    try:
+        return float(os.environ[name])
+    except (KeyError, ValueError):
+        return default
+
+
 # The category decides *what kind of thing* this is; a constraint only filters
 # within it. Weighting them the other way round returns leather gloves to
 # someone who asked for leather snow boots -- measured, not hypothetical.
 # Material/colour get their own bonuses below, so the constraint text itself
 # does not need to carry that weight.
-WEIGHT_CATEGORY = 2.0
-WEIGHT_CONSTRAINT = 1.0
-BONUS_MATERIAL = 3.0
-BONUS_COLOR = 3.0
-BONUS_BUDGET = 2.5
+# 0.5, down from 2.0. The old value was set when stage A *replaced* BM25's
+# ordering and the category had to dominate to stop "leather snow boots"
+# returning leather gloves. Under RRF the category is already carried by
+# retrieve()'s own ranking, so stage A's job is to discriminate *within* the
+# category -- which is what the constraints do. Anywhere in 0.25-1.0 scores the
+# same (0.784-0.793); 0.5 is the middle of that plateau, not an argmax.
+WEIGHT_CATEGORY = _tunable("TJ_W_CATEGORY", 0.5)
+WEIGHT_CONSTRAINT = _tunable("TJ_W_CONSTRAINT", 1.0)
+BONUS_MATERIAL = _tunable("TJ_B_MATERIAL", 3.0)
+BONUS_COLOR = _tunable("TJ_B_COLOR", 3.0)
+BONUS_BUDGET = _tunable("TJ_B_BUDGET", 2.5)
+# --- How BM25's ordering and this module's scoring are combined -------------
+#
+# Stage A used to *replace* retrieve()'s ordering, keeping only a flat
+# (pool_size - position) / pool_size tie-break worth at most 1.0 against term
+# scores an order of magnitude larger. Measured with tools/rank_probe.py, that
+# threw away hits: of 26 missed sessions, 11 had the target at BM25 position
+# 1-10 at the last scored turn and rank() pushed every one of them out.
+#
+# Fusing the two *rankings* rather than their scores fixes that. Reciprocal
+# rank fusion -- 1 / (RRF_K + rank), Cormack et al. 2009 -- is steep at the head
+# and almost flat in the tail, which is the shape this problem wants: a
+# candidate BM25 puts first is expensive to displace, while stage A stays free
+# to promote something from position 300 that BM25 had no reason to like. It is
+# also scale-free, so neither side has to be calibrated against the other's
+# units -- the failure that made the flat prior useless.
+FUSION = os.environ.get("TJ_FUSION", "rrf")
+RRF_K = _tunable("TJ_RRF_K", 60.0)
+WEIGHT_RRF_RETRIEVAL = _tunable("TJ_W_RRF_RETRIEVAL", 1.0)
+WEIGHT_RRF_STAGE_A = _tunable("TJ_W_RRF_STAGE_A", 1.0)
+# Only used by the legacy FUSION="linear" path, kept so the pre-fusion
+# behaviour stays reproducible for A/B.
+WEIGHT_PRIOR = _tunable("TJ_W_PRIOR", 1.0)
 # Profile tags are things like "fit"/"comfort" -- they match most of the
 # catalog, so they break ties and nothing more.
 BONUS_PROFILE_TAG = 0.1
@@ -311,13 +352,29 @@ def rank(candidates: list[Candidate], state: DialogState) -> list[Candidate]:
     if not weights:
         return list(candidates)
 
-    # retrieve() returns its pool already in BM25 order; keep a small
-    # prior on that so a total scoring miss degrades to retrieval's answer
-    # rather than to noise.
-    total = len(candidates)
-    for position, candidate in enumerate(candidates):
-        prior = (total - position) / total
-        candidate.score = _score(candidate.parent_asin, weights, blob, catalog) + prior
+    # retrieve() returns its pool already in BM25 order, so a candidate's index
+    # *is* its retrieval rank.
+    stage_a = {
+        candidate.parent_asin: _score(candidate.parent_asin, weights, blob, catalog)
+        for candidate in candidates
+    }
+    if FUSION == "linear":
+        total = len(candidates)
+        for position, candidate in enumerate(candidates):
+            prior = WEIGHT_PRIOR * (total - position) / total
+            candidate.score = stage_a[candidate.parent_asin] + prior
+    else:
+        by_stage_a = sorted(
+            range(len(candidates)),
+            key=lambda index: stage_a[candidates[index].parent_asin],
+            reverse=True,
+        )
+        stage_a_rank = {index: rank for rank, index in enumerate(by_stage_a, start=1)}
+        for position, candidate in enumerate(candidates):
+            candidate.score = (
+                WEIGHT_RRF_RETRIEVAL / (RRF_K + position + 1)
+                + WEIGHT_RRF_STAGE_A / (RRF_K + stage_a_rank[position])
+            )
 
     ordered = sorted(candidates, key=lambda item: item.score or 0.0, reverse=True)
 
