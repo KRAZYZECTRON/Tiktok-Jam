@@ -206,18 +206,21 @@ def _payload(message: str) -> str:
     return found.group(1) if found else message
 
 
-def _query_profile(state: DialogState) -> tuple[dict[str, float], str]:
-    """Accumulate weighted query terms across the whole conversation.
+def split_dialog(state: DialogState) -> tuple[str, list[str]]:
+    """The conversation as (what they're shopping for, constraints disclosed).
 
-    Falls back to raw messages, but prefers structured slots if dialog.py has
-    started populating them (Seat 3) -- so this keeps working either way.
+    Both ranking stages go through this. Keeping it in one place matters: two
+    separate versions of "pull the useful text out of the messages" is exactly
+    how the category ended up being dropped, twice.
+
+    Prefers structured slots if dialog.py has started populating them (Seat 3),
+    falls back to the raw messages -- so it works either way.
     """
     messages = list(getattr(state, "messages", []) or [])
-    slots = getattr(state, "slots", None)
     if not messages:
-        return {}, ""
+        return "", []
 
-    # Split turn 1 into "what they are shopping for" and "the first constraint".
+    # Turn 1 is "I'm looking for {category}[. {constraint}]" -- split the halves.
     opening = _strip_noise(messages[0])
     payload = PAYLOAD_RE.search(opening)
     if payload:
@@ -230,6 +233,7 @@ def _query_profile(state: DialogState) -> tuple[dict[str, float], str]:
 
     constraint_texts: list[str] = [opening_constraint] if opening_constraint else []
 
+    slots = getattr(state, "slots", None)
     if isinstance(slots, dict) and slots:
         constraint_texts = [str(value) for value in slots.values() if value]
     else:
@@ -241,6 +245,15 @@ def _query_profile(state: DialogState) -> tuple[dict[str, float], str]:
             cleaned = _payload(_strip_noise(message)).strip()
             if cleaned:
                 constraint_texts.append(cleaned)
+
+    return category_text, constraint_texts
+
+
+def _query_profile(state: DialogState) -> tuple[dict[str, float], str]:
+    """Accumulate weighted query terms across the whole conversation."""
+    category_text, constraint_texts = split_dialog(state)
+    if not category_text and not constraint_texts:
+        return {}, ""
 
     weights: dict[str, float] = {}
     for term in _terms(category_text):

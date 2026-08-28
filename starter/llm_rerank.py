@@ -19,6 +19,7 @@ API key, no rate limit, no extra dependency to install on a teammate's machine.
 """
 from __future__ import annotations
 
+import atexit
 import hashlib
 import json
 import os
@@ -36,6 +37,9 @@ MODEL = os.environ.get("RANK_LLM_MODEL", "qwen2.5:7b-instruct")
 SHORTLIST = int(os.environ.get("RANK_LLM_SHORTLIST", "50"))
 KEEP = int(os.environ.get("RANK_LLM_KEEP", "10"))
 TIMEOUT = float(os.environ.get("RANK_LLM_TIMEOUT", "60"))
+# How hard the model's opinion pushes against stage A's score, as a fraction of
+# the shortlist's score spread. 0 = stage A untouched, 1 = model dominates.
+LLM_WEIGHT = float(os.environ.get("RANK_LLM_WEIGHT", "0.3"))
 TITLE_CHARS = 110
 
 SYSTEM = (
@@ -57,6 +61,9 @@ def _load_cache() -> dict[str, list[int]]:
             _cache = pickle.loads(_cache_path.read_bytes())
         except Exception:
             _cache = {}
+        # Flushed at exit rather than per call -- an evaluator run makes
+        # thousands, and without this the cache never survives the process.
+        atexit.register(save_cache)
     return _cache
 
 
@@ -77,15 +84,24 @@ def usage() -> dict[str, int]:
 
 
 def _need_text(state: DialogState) -> str:
-    """What the shopper is after, in the order they said it."""
-    from .ranking import _payload, _strip_noise
+    """What the shopper is after, with the product type stated first.
 
-    parts: list[str] = []
-    for message in getattr(state, "messages", []) or []:
-        cleaned = _payload(_strip_noise(message)).strip()
-        if cleaned and cleaned not in parts:
-            parts.append(cleaned)
-    return " ".join(parts)[:600]
+    Goes through ranking.split_dialog so the category cannot be dropped -- an
+    earlier version built this separately and sent the model needs like
+    "leather." with no idea the shopper wanted handbags.
+    """
+    from .ranking import split_dialog
+
+    category, constraints = split_dialog(state)
+    seen: list[str] = []
+    for value in constraints:
+        value = value.strip(" .;,")
+        if value and value not in seen:
+            seen.append(value)
+    need = category.strip() or "a clothing item"
+    if seen:
+        need += ". Requirements: " + "; ".join(seen)
+    return need[:600]
 
 
 def _call(prompt: str) -> str:
@@ -161,6 +177,16 @@ def llm_rerank(candidates: list[Candidate], state: DialogState, catalog) -> list
     if not order:
         return candidates
 
-    chosen = [head[index - 1] for index in order[:KEEP]]
-    picked = {id(item) for item in chosen}
-    return chosen + [item for item in head if id(item) not in picked] + tail
+    # Blend, don't overwrite. Letting the model's ordering replace stage A's
+    # measured worse: it moved the target up in 6 sessions but down in 12, and
+    # knocked it out of the top 10 in 6. As a *bonus* on top of stage A's score
+    # it can promote what it is confident about without discarding a good
+    # placement stage A already made.
+    scores = [item.score or 0.0 for item in head]
+    spread = (max(scores) - min(scores)) or 1.0
+    for position, index in enumerate(order[:KEEP]):
+        candidate = head[index - 1]
+        candidate.score = (candidate.score or 0.0) + LLM_WEIGHT * spread * (KEEP - position) / KEEP
+
+    head = sorted(head, key=lambda item: item.score or 0.0, reverse=True)
+    return head + tail
