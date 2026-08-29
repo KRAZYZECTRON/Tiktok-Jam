@@ -509,3 +509,50 @@ beat it.
 
 **Result: adopted.** With this every document in the repo has now been audited
 against a fresh run at least once tonight.
+
+---
+
+## Iteration 11 — a tool that measured something other than its label
+
+**Chosen because** `tools/` was the last unexamined surface, and because in
+iteration 2 I noticed `holdout_check.py`'s baked-in configs were stale, said so
+in passing, and did not fix it. That is the same pattern as iteration 4's unmade
+fix. A tool printing a misleading number is worse than one that does not exist,
+because someone will quote it.
+
+**The defect.** `holdout_check.py` compares three configurations and prints
+`delta, best swept minus original`. But its `ORIGINAL` dict overrides only the
+fusion mode and a few stage-A weights — **every later addition (the post-fusion
+card, category, popularity and rating terms) stays at its shipped value in every
+row, including the one called "original"**. So the headline delta of +0.031 was
+never "what tuning was worth"; the real figure from the kit baseline to shipped
+is about +0.85. The row was mislabelled, not miscomputed.
+
+**Not deleted, because the measurement is real.** Holding the post-fusion layer
+constant and varying only fusion and weights is a legitimate thing to know. What
+was wrong was calling the baseline "original" and the delta "best swept minus
+original". Now:
+
+- the row is `old fusion+weights`, not `original`
+- the delta says "from the fusion and weight choices alone" and states
+  explicitly that every row already contains the post-fusion layer
+- the module docstring opens by warning that the labels used to overstate the
+  scope, and redirects to `tools/stability.py`, which supersedes it: one shipped
+  choice at a time, against the real shipped config, over 200 partitions
+
+`README.md` updated to name `stability.py` as the honest instrument and describe
+`holdout_check.py` as the narrower, older one.
+
+**Also noted, not acted on:** seven of the eleven tools reach into private agent
+internals (`agent._states`, `ranking._catalog_for`, `_terms`, `_score`). That is
+a deliberate diagnostic liberty — `_states` is the only way to see the composed
+query — but it means a refactor of `agent.py` would break seven tools silently.
+Worth a human's judgement rather than an overnight refactor of working
+diagnostics.
+
+**Verified after:** 80 tests pass, 19 documented claims re-verify, clean
+0.953064 / Hit@10 1.0000, `evaluator/` and `data/` untouched.
+
+**Result: adopted.** Second instance tonight of a problem I had already spotted
+and left. Both are now fixed; the pattern is worth naming — noticing a defect
+and moving on records it as known, which reads later like it was handled.

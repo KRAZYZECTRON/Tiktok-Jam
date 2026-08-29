@@ -1,4 +1,16 @@
-"""Split-half stability check for a rank() weight configuration.
+"""Split-half stability check for the FUSION AND WEIGHT choices in rank().
+
+**Read the scope carefully — the labels used to overstate it.** The configs
+below override only the fusion mode and the stage-A term weights. Everything
+added later — the post-fusion card, category, popularity and rating terms — stays
+at its shipped value in *every* row, including the one called "original". So this
+does not measure "how much tuning was worth in total"; it measures **the fusion
+and weight choices alone, holding the post-fusion layer constant**. That is a
+real quantity, just a much smaller one than the old label implied.
+
+For per-tunable evidence over many random splits, prefer `tools/stability.py`,
+which supersedes this: it varies one shipped choice at a time against the actual
+shipped configuration, over 200 partitions rather than one.
 
 Sweeping picks the configuration that scores best on the 200 visible sessions,
 which is exactly the procedure that manufactures a number the hidden 800 will
@@ -36,7 +48,9 @@ ORIGINAL = {
     "BONUS_BUDGET": 2.5,
 }
 
-# Best of the 53 configurations swept, on the full 200.
+# Best of the 53 configurations swept, at the time of that sweep. Note this
+# lists only fusion and stage-A weights -- the post-fusion terms are not here
+# and therefore stay at their shipped values in every row below.
 BEST = {
     "FUSION": "rrf",
     "RRF_K": 60.0,
@@ -93,7 +107,9 @@ def main() -> None:
         "half B, odd idx (100)": samples[1::2],
     }
     configs = {
-        "original": ORIGINAL,
+        # "old fusion+weights" rather than "original": the post-fusion layer is
+        # present in this row too. Naming it "original" was the misleading part.
+        "old fusion+weights": ORIGINAL,
         "swept only": BEST,
         "swept+rotate": {**FINAL, "_rotate": True},
     }
@@ -114,10 +130,13 @@ def main() -> None:
                   f"{result['mrr']:>10.6f}{result['mttc']:>8.3f}"
                   f"{result['recommended_technical_score']:>12.6f}")
 
-    print("\ndelta, best swept minus original")
+    print()
+    print("delta from the fusion and weight choices alone")
+    print("NOT the total value of tuning: every row above, including")
+    print("the baseline one, already contains the post-fusion layer.")
     for split_name in halves:
         best = table[split_name]["swept+rotate"]
-        original = table[split_name]["original"]
+        original = table[split_name]["old fusion+weights"]
         print(f"  {split_name:<26} hit {best['hit_rate_at_10'] - original['hit_rate_at_10']:+.4f}"
               f"   technical {best['technical'] - original['technical']:+.6f}")
 

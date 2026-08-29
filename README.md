@@ -131,8 +131,11 @@ scale-free, so neither side needs calibrating against the other.
   left to disclose**, rather than re-showing a Top 10 already rejected. It is
   worth +0.018 of the 0.8108. `TJ_ROTATE=off` disables it; the agent scores
   0.7928 without. Reasoning in `NOTES_dialog.md`.
-- **Tuning used all 200 public sessions**, so `tools/holdout_check.py` is a
-  split-half stability check, not a holdout. The gain holds on both halves but
+- **Tuning used all 200 public sessions**, so nothing here is a true holdout.
+  `tools/stability.py` is the honest instrument: it varies one shipped choice at
+  a time over 200 random split-halves. (`tools/holdout_check.py` predates it and
+  covers only the fusion and weight choices — its labels were corrected once they
+  were found to overstate that scope.) The gain holds on both halves but
   unevenly (+0.083 / +0.013 for the tuned weights; +0.013 / +0.023 for the
   structural change). Expect the hidden set nearer 0.78 than 0.81.
 - **An optional local-LLM re-ranking stage exists** (`starter/llm_rerank.py`,
