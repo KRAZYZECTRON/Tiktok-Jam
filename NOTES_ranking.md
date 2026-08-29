@@ -166,6 +166,39 @@ service, but they still have to be bundled and CPU-fast.
 
 ---
 
+---
+
+## 29 Aug — stage B re-tested after RRF, and it now *hurts*
+
+`RANK_USE_LLM=1` had not been run since fusion landed. It has now, full 200:
+
+| | Hit@10 | MRR | MTTC | score |
+|---|--------|-----|------|-------|
+| shipped (`RANK_USE_LLM` unset) | 0.9550 | 0.5729 | 2.93 | **0.8108** |
+| `RANK_USE_LLM=1` | 0.9550 | 0.5307 | 2.99 | 0.7969 |
+
+Hit@10 is identical; **MRR falls 0.573 -> 0.531** and takes 0.014 of score with
+it. The stage is now a regression, not a gain.
+
+The mechanism is the one flagged as a risk when fusion landed. Stage B adds its
+bonus to `candidate.score`, which under the old linear path was a term total
+around 30 and under RRF is a reciprocal-rank sum around 0.03. The bonus is
+scaled to the shortlist's *spread*, so it did not blow up — it just now carries
+roughly the same relative weight against a much better-ordered list. Displacing
+RRF's ordering costs more than the model's opinion is worth.
+
+**Decision: leave it off, and stop treating it as latent upside.** Two
+independent reasons now agree, which is worth more than either alone:
+
+1. Official scoring may run offline, so it would contribute nothing there anyway.
+2. It measurably makes the ranking worse where it *can* run.
+
+Retuning `RANK_LLM_WEIGHT` downward would presumably recover the difference by
+making the stage do less, which is a strange thing to spend the remaining hours
+on. Keeping the code is still right — it is an honest negative result and a
+better writeup than a claim we never tested. **This is the third time on this
+module that a measured check reversed something that sounded obviously good.**
+
 ## Open questions / next
 
 - **Confirm the scoring environment before anyone builds further on a model.**

@@ -61,6 +61,20 @@ rank 23 shown first on page 3 records as rank 1; that inflates MRR as well as
 Hit@10. Disclose it in the writeup. If it is ever challenged, one line reverts
 it and we still hold 0.79. Rationale in `NOTES_dialog.md`.
 
+## The optional LLM stage is off, and now measurably so
+
+`starter/llm_rerank.py` (local Ollama, `RANK_USE_LLM=1`) re-tested after RRF:
+
+| | Hit@10 | MRR | MTTC | score |
+|---|--------|-----|------|-------|
+| shipped, stage B off | 0.9550 | 0.5729 | 2.93 | **0.8108** |
+| stage B on | 0.9550 | 0.5307 | 2.99 | 0.7969 |
+
+It costs 0.014. Under RRF the candidate scores are reciprocal-rank sums (~0.03,
+not ~30), and displacing a well-fused ordering costs more than a 7B model's
+opinion of 50 titles is worth. Kept in the tree as an evaluated negative result;
+not part of the submission's scored path.
+
 ## Weight sensitivity (overfit check)
 
 `WEIGHT_CATEGORY` is the one tuned value whose split-half gain was lopsided.
