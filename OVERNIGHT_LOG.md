@@ -357,3 +357,57 @@ is `(?<![A-Za-z0-9])[A-Za-z]:[\/]|/home/|/Users/`, verified against all eight.
 re-verify, caches restored, worktree removed, `evaluator/` and `data/` untouched.
 
 **Result: adopted.**
+
+---
+
+## Iteration 8 — two SCOREBOARD tables contradicted the rest of the file
+
+**Chosen because** iteration 4 established that documented numbers drift, and
+the sweep tables were the largest block nothing checked. They record
+measurements taken at *past* pipeline states, which is legitimate as history —
+but only if labelled. Unlabelled, a judge re-running one gets a different number
+and concludes we are sloppy rather than rigorous.
+
+**Cheap first:** re-ran the two cheapest sweeps rather than reasoning about
+whether they had drifted.
+
+**Both had, and one had become false.**
+
+`BONUS_EXACT_PHRASE`, as documented: "the score rises monotonically to 120 and
+is then flat", 0.8402 -> 0.8560, a +0.016 gain.
+
+| bonus | 0 | 12 | 250 | 1000 |
+|---|---|---|---|---|
+| documented | 0.8402 | 0.8505 | 0.8560 | 0.8560 |
+| **current** | 0.952981 | 0.953064 | 0.953064 | 0.953064 |
+
+It is now worth **+0.00008** and is flat from 12 upward. The post-fusion card
+term added later expresses the same signal where rank fusion cannot flatten it,
+and has subsumed this one entirely. The section describing it as load-bearing
+sat about 350 lines above the stability table reaching the opposite conclusion
+independently (0% of splits) — **the file contradicted itself.**
+
+`WEIGHT_CATEGORY`, as documented: 0.5 / 1.0 / 2.0 -> 0.8108 / 0.8096 / 0.8028,
+"a 0.008 spread across a 4x range".
+
+| | 0.5 | 1.0 | 2.0 | 5.0 |
+|---|---|---|---|---|
+| documented | 0.8108 | 0.8096 | 0.8028 | — |
+| **current** | 0.953064 | 0.953314 | 0.953004 | 0.953127 |
+
+Here the *conclusion* survives and is stronger — 0.0003 across a 10x range
+rather than 0.008 across 4x, and non-monotonic. Still a plateau, 0.5 still fine.
+Only the numbers were wrong.
+
+**Both tables now carry historical and current rows side by side**, because the
+historical figure is what justified the decision at the time and the current one
+is what a reader reproduces. Deleting the history would hide the reasoning;
+leaving it unlabelled misleads.
+
+**Both are now in `verify_claims.py`** (17 -> 19 checks), so the next drift
+fails loudly instead of sitting in the file for a week.
+
+**Verified after:** all 19 claims pass, clean 0.953064 / Hit@10 1.0000, 80 tests
+pass, `evaluator/` and `data/` untouched. Docs and verifier only.
+
+**Result: adopted.**

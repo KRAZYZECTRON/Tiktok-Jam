@@ -109,12 +109,19 @@ discloses them close to verbatim. So a candidate whose text contains a disclosed
 phrase *intact* is far more likely to be the target than one that merely shares
 its words — a distinction bag-of-words scoring cannot draw.
 
-Swept on the full 200, the score rises monotonically to `BONUS_EXACT_PHRASE=120`
-and is then flat to 1000:
+Swept on the full 200 **at the time it was adopted** (baseline 0.8402), the
+score rose monotonically to `BONUS_EXACT_PHRASE=120` and was then flat to 1000:
 
 | bonus | 0 | 12 | 35 | 60 | 120 | 250 | 1000 |
 |---|---|---|---|---|---|---|---|
-| score | 0.8402 | 0.8505 | 0.8525 | 0.8546 | 0.8560 | 0.8560 | 0.8560 |
+| score *(historical)* | 0.8402 | 0.8505 | 0.8525 | 0.8546 | 0.8560 | 0.8560 | 0.8560 |
+
+**Re-run against the current pipeline it is worth almost nothing** — 0.952981 at
+zero against 0.953064 at every value from 12 upward, a total effect of +0.00008.
+The post-fusion card term added later expresses the same signal where rank
+fusion cannot flatten it, and has subsumed this one. Kept at 250 because it is
+harmless, but it is no longer doing the work described below. See the stability
+table for the same conclusion reached independently (0% of splits).
 
 The plateau is the finding. Past it the bonus stops behaving like a weight and
 becomes a **lexicographic primary key**: phrase-matching candidates first,
@@ -542,14 +549,15 @@ simulator-generated benchmark, mechanism beats intuition.
 ## Weight sensitivity (overfit check)
 
 `WEIGHT_CATEGORY` is the one tuned value whose split-half gain was lopsided.
-Swept on the full 200:
 
-| `TJ_W_CATEGORY` | 0.5 (shipped) | 1.0 | 2.0 |
-|---|---|---|---|
-| score | 0.8108 | 0.8096 | 0.8028 |
+| `TJ_W_CATEGORY` | 0.5 (shipped) | 1.0 | 2.0 | 5.0 |
+|---|---|---|---|---|
+| score *(historical, 0.8108 baseline)* | 0.8108 | 0.8096 | 0.8028 | — |
+| score *(current)* | 0.953064 | 0.953314 | 0.953004 | 0.953127 |
 
-A 0.008 spread across a 4x range — a plateau, not an argmax. Low risk against
-the hidden 800.
+The conclusion survives and is in fact stronger. It was a 0.008 spread across a
+4x range; it is now **0.0003 across a 10x range**, and non-monotonic — a plateau,
+not an argmax. 0.5 stays. Low risk against the hidden 800.
 
 ## Standing constraints
 

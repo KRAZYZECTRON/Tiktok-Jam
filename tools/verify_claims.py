@@ -145,6 +145,25 @@ def main() -> None:
     finally:
         agent_mod.MIN_DISCLOSED, agent_mod.HOLD_UNTIL_TURN, agent_mod.ANSWER_IF_CONSISTENT = saved
 
+    # --- sweep tables SCOREBOARD quotes, so they cannot drift unnoticed -----
+    import starter.ranking as ranking_mod
+
+    def with_weight(attribute: str, value: float) -> float:
+        held = getattr(ranking_mod, attribute)
+        setattr(ranking_mod, attribute, value)
+        try:
+            return evaluate(Agent(CATALOG), samples, catalog_ids, categories,
+                            products)["recommended_technical_score"]
+        finally:
+            setattr(ranking_mod, attribute, held)
+
+    # Both were real gains when adopted and are now near-inert. The check is
+    # that the *documented current* values still hold, not the historical ones.
+    check("BONUS_EXACT_PHRASE=0 (docs: near-inert at 0.952981)",
+          with_weight("BONUS_EXACT_PHRASE", 0.0), 0.952981, 5e-4)
+    check("WEIGHT_CATEGORY=1.0 (docs: 0.953314, a plateau)",
+          with_weight("WEIGHT_CATEGORY", 1.0), 0.953314, 5e-4)
+
     # --- the pure-stdlib guarantee ------------------------------------------
     import starter.retrieval as retrieval_mod
 
