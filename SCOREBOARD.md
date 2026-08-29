@@ -17,7 +17,8 @@ Score = 0.50·Hit@10 + 0.30·MRR + 0.20·efficiency, efficiency = (11 − MTTC)/
 | 29 Aug | verbatim category containment | 1.0000 | 0.6406 | 2.47 | 0.8629 | ✅ |
 | 29 Aug | conjunctive intent-card consistency | 1.0000 | 0.6606 | 2.35 | 0.8712 | ✅ |
 | 29 Aug | bounded hold-back until 4 constraints disclosed | 1.0000 | 0.8538 | 3.20 | 0.9122 | ✅ |
-| 29 Aug | promote card-consistent candidates *after* fusion | **1.0000** | **0.8862** | **3.15** | **0.9230** | ✅ |
+| 29 Aug | promote card-consistent candidates *after* fusion | 1.0000 | 0.8862 | 3.15 | 0.9230 | ✅ |
+| 29 Aug | promote category match after fusion too | **1.0000** | **0.8924** | **3.14** | **0.9250** | ✅ |
 
 "verified" = re-run independently on a clean checkout of that commit, not just
 quoted from the authoring session. The dialog-merge row is the one intermediate
@@ -221,6 +222,21 @@ weight. Split-half +0.018 / +0.0034.
 The lesson generalises: **where a signal is applied matters as much as how
 strongly.** A rank-fusion step will silently flatten any evidence expressed as a
 score, however confident that evidence is.
+
+Applying the same correction to the category match adds a further +0.002
+(0.9230 → 0.9250), with the most consistent split-half of anything here:
++0.0016 / +0.0026. It is kept an order of magnitude below the card term so it
+breaks ties *within* the card-consistent group rather than competing with it.
+
+The phrase count, given the same treatment, does **nothing** — 0, 0.002 and
+0.008 score identically. The card term already accounts for everything it would
+say. Three signals, same correction, and only two of them had anything left to
+give: worth knowing before assuming the pattern always pays.
+
+After both, the 43 non-rank-1 sessions are down to **33: 31 genuine ties where
+every rival is equally consistent with everything disclosed, and 2 parse
+losses.** Slot-*position* matching would break only 2 of the 31, so it was not
+adopted.
 
 ## Why ~0.92 is close to the information ceiling
 

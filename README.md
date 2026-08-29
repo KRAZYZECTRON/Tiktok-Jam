@@ -10,7 +10,7 @@ product inside a Top-10 list, within 10 turns.
 | | Hit@10 | MRR | MTTC | Technical score |
 |---|--------|-----|------|-----------------|
 | Provided BM25 baseline | 0.1250 | 0.0680 | 9.81 | 0.1067 |
-| **This agent** | **1.0000** | **0.8862** | **3.15** | **0.9230** |
+| **This agent** | **1.0000** | **0.8924** | **3.14** | **0.9250** |
 
 200 public sessions, `evaluator/local_evaluator.py`, unmodified.
 `TechnicalScore = 0.50·Hit@10 + 0.30·MRR + 0.20·Efficiency`.

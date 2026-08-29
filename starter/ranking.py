@@ -208,6 +208,16 @@ BONUS_CARD_ALL = _tunable("TJ_B_CARD_ALL", 1000.0)
 # Saturates immediately -- 0.02, 0.1 and 0.5 all score 0.922956 -- which is the
 # signature of a key rather than a weight. Shipped at 0.1, mid-plateau.
 BONUS_CARD_FUSED = _tunable("TJ_B_CARD_FUSED", 0.1)
+# The same correction applied to the other two identification signals, which are
+# also expressed as stage-A scores and therefore also flattened by fusion. Kept
+# an order of magnitude below the card term so they break ties *within* the
+# card-consistent group rather than competing with it.
+# Saturates at 0.005 and above (all score 0.925029). Split-half +0.0016/+0.0026.
+BONUS_CAT_FUSED = _tunable("TJ_B_CAT_FUSED", 0.02)
+# Inert, and measured so: 0, 0.002 and 0.008 score identically and 0.03 is
+# worse. The card term already accounts for everything the phrase count would
+# say, so this only adds noise. Kept tunable to keep the result reproducible.
+BONUS_PHRASE_FUSED = _tunable("TJ_B_PHRASE_FUSED", 0.0)
 # --- How BM25's ordering and this module's scoring are combined -------------
 #
 # Stage A used to *replace* retrieve()'s ordering, keeping only a flat
@@ -557,6 +567,17 @@ def rank(candidates: list[Candidate], state: DialogState) -> list[Candidate]:
     # Which candidates are consistent with everything disclosed. Computed once
     # here and used twice: to promote them after fusion, and as the agent's
     # confidence signal.
+    cat_hit: set[str] = set()
+    phrase_n: dict[str, int] = {}
+    if category_phrase or phrases:
+        for candidate in candidates:
+            fields = catalog.fields.get(candidate.parent_asin, {})
+            if category_phrase and category_phrase in fields.get("categories", "").lower():
+                cat_hit.add(candidate.parent_asin)
+            if phrases:
+                text = catalog.blob(candidate.parent_asin).lower()
+                phrase_n[candidate.parent_asin] = sum(1 for ph in phrases if ph in text)
+
     consistent: set[str] = set()
     if disclosed:
         for candidate in candidates:
@@ -591,6 +612,9 @@ def rank(candidates: list[Candidate], state: DialogState) -> list[Candidate]:
             )
             if candidate.parent_asin in consistent:
                 candidate.score += BONUS_CARD_FUSED
+            if candidate.parent_asin in cat_hit:
+                candidate.score += BONUS_CAT_FUSED
+            candidate.score += BONUS_PHRASE_FUSED * phrase_n.get(candidate.parent_asin, 0)
 
     ordered = sorted(candidates, key=lambda item: item.score or 0.0, reverse=True)
 
