@@ -265,6 +265,9 @@ WEIGHT_PRIOR = _tunable("TJ_W_PRIOR", 1.0)
 # Profile tags are things like "fit"/"comfort" -- they match most of the
 # catalog, so they break ties and nothing more.
 BONUS_PROFILE_TAG = 0.1
+# Weight on terms this profile used in EARLIER sessions (starter/profile.py).
+# Off until measured -- personalization has lost twice already in this project.
+BONUS_PROFILE_MEMORY = _tunable("TJ_B_PROFILE_MEM", 0.0)
 
 MATERIAL_RE = re.compile(r"\b(cotton|polyester|nylon|leather|wool|spandex|silk|rayon|fabric)\b", re.I)
 COLOR_RE = re.compile(r"\b(black|white|blue|red|pink|green|brown|gray|grey|purple|yellow|orange)\b", re.I)
@@ -495,6 +498,10 @@ def _query_profile(state: DialogState) -> tuple[dict[str, float], str]:
     for tag in (state.user_profile or {}).get("preference_tags", []) or []:
         for term in _terms(str(tag)):
             weights[term] = weights.get(term, 0.0) + BONUS_PROFILE_TAG
+
+    if BONUS_PROFILE_MEMORY:
+        for term, strength in (getattr(state, "profile_prior", None) or {}).items():
+            weights[term] = weights.get(term, 0.0) + BONUS_PROFILE_MEMORY * strength
 
     constraint_blob = " ".join([category_text, *constraint_texts])
     return weights, constraint_blob

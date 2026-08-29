@@ -8,6 +8,8 @@ import os
 from pathlib import Path
 
 from .dialog import update_state
+from .orchestrate import select as select_strategy, window_for
+from .profile import ProfileMemory
 from .ranking import rank
 from .retrieval import retrieve
 from .state import DialogState
@@ -109,13 +111,24 @@ class Agent:
     def __init__(self, catalog_path: str | Path = "data/catalog.jsonl") -> None:
         self.catalog_path = str(catalog_path)
         self._states: dict[str, DialogState] = {}
+        # Long-term memory, deliberately on the Agent and not the session: the
+        # harness builds one Agent and calls reset() per session, so this is
+        # what "long-term user profile" means here. 200 public sessions carry
+        # only 125 distinct profiles, so recurrence is real.
+        self._profiles = ProfileMemory()
 
     def reset(self, session_id: str, user_profile: dict) -> None:
-        self._states[session_id] = DialogState(
+        distilled = self._profiles.begin(user_profile)
+        state = DialogState(
             session_id=session_id,
             user_profile=user_profile,
             catalog_path=self.catalog_path,
         )
+        state.profile_signature = distilled.signature
+        state.profile_tags = distilled.tags
+        # Terms this profile used in earlier sessions. Empty on first exposure.
+        state.profile_prior = self._profiles.prior_terms(distilled.signature)
+        self._states[session_id] = state
 
     def respond(
         self,
@@ -135,33 +148,28 @@ class Agent:
         query = getattr(state, "query", "") or user_message
         candidates = retrieve(query, state, max(POOL_K, top_k))
         ranked = rank(candidates, state)
-        # Once the shopper has nothing left to disclose, dialog.py counts the
-        # dead turns and we page down the ranked list instead of re-showing a
-        # top ten that has already been rejected. Falls back to the head if the
-        # pool is shallower than the offset, and to 0 if dialog.py is reverted.
-        rotating = os.environ.get("TJ_ROTATE") != "off"
-        offset = getattr(state, "exhausted_turns", 0) * top_k if rotating else 0
-        window = ranked[offset:offset + top_k] or ranked[:top_k]
-        # Still guessing: ask, but do not spend the session's one scored answer
-        # on a list we expect to rank the target low in.
-        confident = (
-            ANSWER_IF_CONSISTENT
-            and 0 < getattr(state, "card_consistent", 0) <= ANSWER_IF_CONSISTENT
+        # Feed this turn's distilled context back into the long-term store, so
+        # a later session with the same profile starts warmer than this one did.
+        self._profiles.observe(
+            getattr(state, "profile_signature", ""),
+            getattr(state, "category", ""),
+            list(getattr(state, "slots", {}).values()),
         )
-        holding = (
-            MIN_DISCLOSED
-            and turn <= HOLD_UNTIL_TURN
-            and getattr(state, "disclosed_count", 0) < MIN_DISCLOSED
-            and getattr(state, "ask_attribute", None) is not None
-            and not confident
+        # Runtime workflow re-orchestration. Retrieval and ranking are the
+        # same every turn; what the agent *does* with the result is re-decided
+        # here from measured state. See starter/orchestrate.py for the three
+        # strategies and why each exists.
+        strategy = select_strategy(
+            state, turn, top_k,
+            min_disclosed=MIN_DISCLOSED,
+            hold_until_turn=HOLD_UNTIL_TURN,
+            answer_if_consistent=ANSWER_IF_CONSISTENT,
+            confidence_max=CONFIDENCE_MAX,
+            max_turns=MAX_TURNS,
         )
-        if holding or (
-            CONFIDENCE_MAX
-            and turn < MAX_TURNS
-            and getattr(state, "card_consistent", 0) > CONFIDENCE_MAX
-            and getattr(state, "ask_attribute", None) is not None
-        ):
-            window = []
+        state.strategy = strategy.name
+        state.strategy_reason = strategy.reason
+        window = window_for(ranked, strategy, top_k)
 
         usage = {"prompt_tokens": 0, "completion_tokens": 0}
         if os.environ.get("RANK_USE_LLM") == "1":

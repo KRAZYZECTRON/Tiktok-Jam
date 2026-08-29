@@ -45,3 +45,15 @@ class DialogState:
     # consistent-product set collapses from a median of 78 at two to 1 at three,
     # so this is the agent's cue that it can identify rather than guess.
     disclosed_count: int = 0
+    # --- written by orchestrate.select(), for inspection and transcripts ---
+    # Which of CLARIFY / IDENTIFY / EXPLORE this turn ran, and why. Nothing in
+    # the pipeline reads these back; they exist so the agent's own reasoning is
+    # legible in a transcript rather than implicit in its output.
+    strategy: str = ""
+    strategy_reason: str = ""
+    # --- personalized context distillation (starter/profile.py) ---
+    # The aggregate profile parsed into typed fields once at reset(), plus terms
+    # this same profile used in EARLIER sessions (empty on first exposure).
+    profile_signature: str = ""
+    profile_tags: tuple = ()
+    profile_prior: dict = field(default_factory=dict)

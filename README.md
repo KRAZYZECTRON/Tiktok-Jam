@@ -163,9 +163,48 @@ path. It cannot fail an offline run.
 | **I. LLM semantic ranking** | `llm_rerank.py` | Implemented against a local Ollama model. **Off by default, on measurement** — see below |
 | **II. Dynamic state machine: accumulation + intent override** | `dialog.py::update_state` | Slots accumulate across turns with collision-safe keys; an override erases only the opening preference and keeps constraints disclosed after it |
 | **II. Proactive guidance / cutoff on over-generality** | `agent.py`, `ranking.py::rank` | `rank()` reports how many pooled candidates remain consistent with everything disclosed. While that set is large the agent **withholds the list and returns a clarification question instead** — a literal retrieval cutoff under candidate-pool overload |
-| **III. Personalized context distillation** | `dialog.py`, `state.py` | Each turn distils the shopper's reply into typed slots and a composed retrieval query; the aggregate profile's `preference_tags` contribute a tie-break weight |
-| **III. Adaptive orchestration / runtime re-orchestration** | `agent.py` | The agent switches strategy at runtime on measured state: *ask-only* while the candidate set is broad, *answer* once it narrows (`ANSWER_IF_CONSISTENT`), *page down the ranked list* once the shopper stops disclosing. Same pipeline, three behaviours, chosen per turn |
+| **III. Personalized context distillation** | `profile.py`, `dialog.py` | **Short-term:** each turn distils the reply into typed slots and a composed retrieval query. **Long-term:** `ProfileMemory` lives on the Agent, not the session, and accumulates across sessions sharing a profile signature — real here, since the harness builds one Agent and the 200 sessions hold only 125 distinct profiles |
+| **III. Adaptive orchestration / runtime re-orchestration** | `orchestrate.py` | An explicit per-turn policy selecting **CLARIFY** (ask, return nothing), **IDENTIFY** (answer from the head) or **EXPLORE** (answer from a deeper page), from measured state. The choice and its reason are recorded on the state — see `py -m tools.context_demo` |
 | **IV. Coverage / Precision / Efficiency** | `evaluator/` | Hit@10 1.0000 · MRR 0.9438 · MTTC 2.55 |
+
+### Seeing pillars II and III actually happen
+
+```bash
+python -m tools.context_demo --sample public_0002
+```
+
+prints a real session turn by turn — distilled slots, the composed query, how
+many products remain consistent, which strategy was chosen and why. On that
+session the agent runs CLARIFY at 203 consistent candidates, switches to
+IDENTIFY at 18, and on turn 3 the shopper's override **erases** the earlier
+`feature` slot while keeping the constraints disclosed after it.
+
+```bash
+python -m tools.context_demo --memory
+```
+
+shows the long-term store recognising a returning profile and what it carried
+forward.
+
+### An honest result about personalization
+
+The long-term profile memory works, and **it does not improve the score** — a
+prior weight of 0.1 or 0.5 is neutral to slightly negative, so it ships at 0.
+The memory view explains why. One recurring profile accumulates:
+
+```
+watches, wrist, tees, blouses, tunics, underwear, undershirts, novelty, running
+```
+
+The same shopper spans unrelated categories, so their history carries no
+information about their next target. That is a property of how the benchmark
+samples sessions, not a flaw in the layer — and it is the third time
+personalization has measured neutral-or-worse here, after profile-rating
+affinity and the global popularity prior.
+
+We ship the capability wired, working and inspectable, with the weight at zero
+and the reason recorded. On a real deployment, where a returning shopper's
+history *is* predictive, the same layer would carry signal.
 
 ### Two deliberate choices worth stating plainly
 
