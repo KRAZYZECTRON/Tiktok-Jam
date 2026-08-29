@@ -122,6 +122,27 @@ dominating. Pushed to 300 it starts overriding the constraint phrases and MRR
 falls to 0.608. Split-half is the most even result we have: **+0.0466 / +0.0460,
 both halves reaching Hit@10 1.0000.**
 
+## Tested and rejected
+
+Recorded so nobody spends hours re-deriving them. All remain exposed as
+tunables at inert defaults, so each is one env var away from reproducing.
+
+| idea | result | why it failed |
+|------|--------|---------------|
+| **Popularity prior** (`log1p(rating_number)`) | 0.8629 → 0.8488 at best non-zero | The target *is* a real purchase, so this sounded well-founded. It drives MTTC down hard (2.47 → 1.91) but knocks Hit@10 off 1.0000 and MRR with it: a prior on "what people buy", competing with evidence about "what this shopper described" rather than complementing it. |
+| **Length-scaled phrase bonus** | flat to −0.001 | A longer verbatim match ought to be less coincidental, but containment is already near-binary here. |
+| **Title-position phrase bonus** | +0.002 | Inside noise on 200 sessions; declines again above 150. Not adopted on principle — see the n=40 lesson in `NOTES_ranking.md`. |
+| **`RRF_K` sweep** | ±0.006, non-monotonic | Best at 2, *worst* at 20, second-best at 60. A U-shape across a 30x range is noise, not signal. |
+| **RRF mix weights** | ±0.004 | Depends only on the ratio, and every ratio lands within noise of 1:1. |
+| **Phrase-count cap** | exactly 0.000 | Inert — no session ever discloses more than three phrases. |
+| **LLM re-rank (stage B)** | −0.014 | See its own section above. |
+
+The pattern worth noticing: **every idea that worked came from a property of
+how the benchmark constructs its queries** (verbatim phrases, verbatim
+categories, the stale-query signal), and **every idea that failed was a generic
+IR heuristic** (popularity, length weighting, fusion-parameter tuning). On a
+simulator-generated benchmark, mechanism beats intuition.
+
 ## Weight sensitivity (overfit check)
 
 `WEIGHT_CATEGORY` is the one tuned value whose split-half gain was lopsided.

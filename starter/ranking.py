@@ -137,6 +137,22 @@ EXACT_MAX_PHRASES = _tunable("TJ_B_EXACT_MAXN", 6.0)
 # ties rather than dominate. Pushed to 300+ it starts overriding the constraint
 # phrases and MRR falls away (0.608 at 300).
 BONUS_EXACT_CATEGORY = _tunable("TJ_B_EXACT_CAT", 40.0)
+# The ground truth is a *real purchase record*, so how often a product is
+# actually bought is a legitimate prior on it being the target -- and the hidden
+# 800 are drawn the same way. rating_number is the closest observable proxy.
+# Log-scaled: the difference between 5 and 500 ratings should matter far more
+# than between 5000 and 5500.
+#
+# TESTED AND REJECTED -- kept inert at 0.0 and left tunable so the result is
+# reproducible rather than folklore. Every non-zero value scored worse:
+#
+#   0 -> 0.8629    1 -> 0.8488    3 -> 0.8426    20 -> 0.8582   50 -> 0.8528
+#
+# The shape is informative. Popularity drives MTTC *down* hard (2.47 -> 1.91 at
+# 50) because popular items surface early, but Hit@10 slips off 1.0000 and MRR
+# falls with it: it is a prior on "what people buy", not on "what this shopper
+# described", and it competes with evidence rather than complementing it.
+BONUS_POPULARITY = _tunable("TJ_B_POPULARITY", 0.0)
 # --- How BM25's ordering and this module's scoring are combined -------------
 #
 # Stage A used to *replace* retrieve()'s ordering, keeping only a flat
@@ -198,6 +214,7 @@ class _Catalog:
         self.path = catalog_path
         self.fields: dict[str, dict[str, str]] = {}
         self.price: dict[str, float] = {}
+        self.popularity: dict[str, float] = {}
         self.idf: dict[str, float] = {}
         self._token_cache: dict[str, dict[str, set[str]]] = {}
         self._load()
@@ -220,6 +237,12 @@ class _Catalog:
                 self.fields[parent_asin] = {
                     name: _text(product.get(name)) for name in FIELD_WEIGHTS
                 }
+                raw_ratings = product.get("rating_number")
+                if raw_ratings not in (None, ""):
+                    try:
+                        self.popularity[parent_asin] = math.log1p(float(raw_ratings))
+                    except (TypeError, ValueError):
+                        pass
                 raw_price = product.get("price")
                 if raw_price not in (None, ""):
                     try:
@@ -392,6 +415,9 @@ def _score(parent_asin: str, weights: dict[str, float], blob: str, catalog: _Cat
             total += BONUS_EXACT_PHRASE + BONUS_EXACT_PER_CHAR * len(phrase)
             if phrase in title_text:
                 total += BONUS_EXACT_TITLE
+
+    if BONUS_POPULARITY:
+        total += BONUS_POPULARITY * catalog.popularity.get(parent_asin, 0.0)
 
     budget = PRICE_RE.search(blob)
     price = catalog.price.get(parent_asin)
