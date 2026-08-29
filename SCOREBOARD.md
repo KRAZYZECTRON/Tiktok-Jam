@@ -21,7 +21,8 @@ Score = 0.50·Hit@10 + 0.30·MRR + 0.20·efficiency, efficiency = (11 − MTTC)/
 | 29 Aug | promote category match after fusion too | 1.0000 | 0.8924 | 3.14 | 0.9250 | ✅ |
 | 29 Aug | popularity as a post-fusion tie-break | 1.0000 | 0.9520 | 3.13 | 0.9431 | ✅ |
 | 29 Aug | hold-back threshold 4 → 3, re-tuned for the stronger ranker | 1.0000 | 0.9380 | 2.75 | 0.9464 | ✅ |
-| 29 Aug | answer early when already identified (re-adopted) | **1.0000** | **0.9380** | **2.57** | **0.9501** | ✅ |
+| 29 Aug | answer early when already identified (re-adopted) | 1.0000 | 0.9380 | 2.57 | 0.9501 | ✅ |
+| 29 Aug | product rating as a second post-fusion tie-break | **1.0000** | **0.9438** | **2.55** | **0.9522** | ✅ |
 
 "verified" = re-run independently on a clean checkout of that commit, not just
 quoted from the authoring session. The dialog-merge row is the one intermediate
@@ -301,6 +302,29 @@ Popularity was re-tuned at the new operating point too. 0.003 edges ahead on
 raw score (0.9470) but drops Hit@10 to 0.9950; 0.002 holds 1.0000 for 0.0006
 less, which is noise. A maxed metric is the safer thing to carry to the hidden
 800, so 0.002 stays.
+
+## Signals that the post-fusion layer made redundant
+
+Re-sweeping the stage-A weights after the post-fusion terms landed found two
+that no longer do anything at all:
+
+| weight | evidence |
+|---|---|
+| `BONUS_CARD_ALL` (1000) | 0, 100 and 1000 all score identically |
+| `BONUS_EXACT_PHRASE` (250) | 0 and 250 score identically |
+
+Both are subsumed: the post-fusion card term expresses the same condition where
+it survives fusion, and it accounts for everything the phrase count would have
+said. They are left in place at their old values so the pre-fusion pipeline
+stays reproducible, but they no longer influence the shipped score.
+
+`BONUS_EXACT_CATEGORY` is *not* redundant — removing it costs a hit (0.9473 vs
+0.9501). `RRF_K=60` re-swept as a clean peak in the new regime, where it had
+previously looked like noise.
+
+`WEIGHT_CATEGORY` was tempting: the optimum has drifted back up from 0.5 toward
+5.0 for +0.0022 on the full set. Rejected — split-half is +0.00015 / +0.0042, a
+28x gap, so the whole gain rests on one half. Left at 0.5.
 
 ## Tested and rejected
 

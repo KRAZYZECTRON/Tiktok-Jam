@@ -191,8 +191,10 @@ BONUS_CARD_POSITION = _tunable("TJ_B_CARD_POS", 0.0)
 # that away -- a product matching 3 of 4 scores nearly as much as one matching
 # all 4, and there are many more 3-of-4s. Requiring all of them turns a ranking
 # problem into an identification one.
-# Saturates: 1000 and 5000 both score 0.871167, so this is a lexicographic
-# "consistent with everything disclosed" key rather than a weight.
+# NOW INERT -- 0, 100 and 1000 all score identically, because BONUS_CARD_FUSED
+# below expresses the same condition after fusion, where it actually survives.
+# Kept so the pre-fusion behaviour stays reproducible; it no longer affects the
+# shipped score.
 BONUS_CARD_ALL = _tunable("TJ_B_CARD_ALL", 1000.0)
 # The same signal again, applied AFTER fusion instead of inside stage A.
 #
@@ -228,6 +230,16 @@ BONUS_PHRASE_FUSED = _tunable("TJ_B_PHRASE_FUSED", 0.0)
 # starts costing a hit, which at 0.50 weight is not worth the extra MRR.
 # Split-half +0.016 / +0.020.
 BONUS_POP_FUSED = _tunable("TJ_B_POP_FUSED", 0.002)
+# A second tie-break alongside popularity: how well the product is rated. Same
+# logic -- among equally-consistent candidates the question is which one a real
+# shopper bought, and people buy better-rated items. Independent of volume, so
+# it can separate two products with similar rating_number.
+# Split-half +0.0011 / +0.0025, positive on both. There is a cliff above ~0.02
+# (0.03 scores 0.9439, 0.08 loses a hit, 0.2 collapses to 0.744) because at that
+# size it stops breaking ties and starts overriding the identification signal.
+# 0.008 sits well back from it and happens to score slightly better than the
+# 0.012 the sweep peaked at.
+BONUS_RATING_FUSED = _tunable("TJ_B_RATING_FUSED", 0.008)
 # --- How BM25's ordering and this module's scoring are combined -------------
 #
 # Stage A used to *replace* retrieve()'s ordering, keeping only a flat
@@ -626,6 +638,7 @@ def rank(candidates: list[Candidate], state: DialogState) -> list[Candidate]:
                 candidate.score += BONUS_CAT_FUSED
             candidate.score += BONUS_PHRASE_FUSED * phrase_n.get(candidate.parent_asin, 0)
             candidate.score += BONUS_POP_FUSED * catalog.popularity.get(candidate.parent_asin, 0.0)
+            candidate.score += BONUS_RATING_FUSED * catalog.rating.get(candidate.parent_asin, 0.0)
 
     ordered = sorted(candidates, key=lambda item: item.score or 0.0, reverse=True)
 
