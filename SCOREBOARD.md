@@ -426,6 +426,58 @@ sessions lose a turn to the one-shot deflection, and 45 browsing sessions can
 only reach two disclosed constraints by turn 2 — answering there was measured
 worse (0.9406).
 
+## How much of this is real? — `py -m tools.stability`
+
+Every tunable here was adopted on a **single** even/odd split. That is one draw.
+`tools/stability.py` re-tests each shipped choice over 200 random split-halves
+and reports how often its gain holds on *both* halves at once — the same
+standard, measured over many draws instead of one.
+
+| shipped choice | full delta | holds on both | median | verdict |
+|---|---|---|---|---|
+| post-fusion card promotion | +0.0843 | **100%** | +0.0844 | structural |
+| popularity tie-break | +0.0225 | **100%** | +0.0225 | structural |
+| early answer when identified | +0.0037 | **100%** | +0.0038 | structural |
+| post-fusion category match | +0.0016 | 82% | +0.0016 | probably real |
+| hold-back threshold 3 (vs 4) | +0.0007 | 52% | +0.0007 | coin flip |
+| fuzzy card tier | +0.0008 | 50% | +0.0015 | coin flip \* |
+| rating tie-break | +0.0002 | **8%** | +0.0002 | likely luck |
+| exact-phrase bonus | +0.0001 | **0%** | +0.0002 | inert |
+| verbatim category bonus | −0.0000 | **0%** | +0.0000 | inert |
+
+**Three choices carry the entire margin** — +0.111 of the +0.115 above the
+pre-ranking baseline. Everything else is rounding.
+
+\* The fuzzy card tier was adopted for **paraphrase robustness**, not clean-set
+score, and its justification is the medium/heavy measurements (+0.121 / +0.189),
+not this table. A 50% rate here is exactly what "costs nothing on clean data"
+looks like, which is what it was claimed to be.
+
+**Two things this table says that were not previously known:**
+
+1. **The rating tie-break should probably not have been adopted.** It went in on
+   a single split showing +0.0011 / +0.0025. Over 200 splits it holds 8% of the
+   time and its full-set gain is +0.0002 — below the +0.002 noise floor this
+   project set for itself. It is not *harmful*, but it is not evidence either.
+2. **`BONUS_EXACT_PHRASE` and `BONUS_EXACT_CATEGORY` are now inert.** Both were
+   real gains when adopted (+0.016 and +0.007), and both have since been
+   subsumed by the post-fusion layer that expresses the same signal where
+   rank-fusion cannot flatten it. Removing the category bonus even scores
+   fractionally *higher* (0.953089 vs 0.953064) — noise, but it is certainly no
+   longer earning its place.
+
+Neither was reverted overnight: doing so moves the score below the frozen
+0.953064 baseline, and the instruction for unsupervised work was to report
+rather than act. **These are decisions for a human.** The mechanism arguments
+for keeping them are that they cost nothing and may matter on the hidden 800
+where the post-fusion layer's assumptions could hold less well.
+
+**Method note.** Naively this is hundreds of evaluator runs. `evaluate()` returns
+per-session results, so each configuration is run over the full 200 *once* and
+every split is computed by aggregating subsets of that cached list — one run per
+config, then unlimited splits for free. The same random partitions are reused
+across every choice, so the comparison between choices is like-for-like.
+
 ## Tested and rejected
 
 Recorded so nobody spends hours re-deriving them. All remain exposed as
