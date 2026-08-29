@@ -116,7 +116,27 @@ BONUS_EXACT_PHRASE = _tunable("TJ_B_EXACT", 250.0)
 # Below this many characters a "phrase" is a single common word ("cotton") whose
 # containment says nothing; those are already handled by the material/colour
 # bonuses.
-EXACT_MIN_CHARS = 12
+EXACT_MIN_CHARS = _tunable("TJ_B_EXACT_MIN", 12.0)
+# Length-scaled component. Two candidates can both contain a disclosed phrase;
+# the one matching the longer phrase is matching the less-likely coincidence, so
+# among phrase matchers the ordering should follow how much text was matched.
+BONUS_EXACT_PER_CHAR = _tunable("TJ_B_EXACT_CHAR", 0.0)
+# A phrase in the title is a stronger claim than one buried in a description.
+BONUS_EXACT_TITLE = _tunable("TJ_B_EXACT_TITLE", 0.0)
+EXACT_MAX_PHRASES = _tunable("TJ_B_EXACT_MAXN", 6.0)
+# The shopper's opening category ("Handbags & Wallets Totes") is derived from
+# the target's own categories field, so verbatim containment is the same signal
+# as for constraints -- it just applies to a different field.
+# Swept on the full 200: every value in 20-70 reaches Hit@10 1.0000 and scores
+# within 0.004 of each other (0.8609-0.8643). The structural gain -- the last
+# missed session -- is flat across that band; the MRR wiggle inside it is noise
+# on 200 sessions. 40 is mid-band rather than the 20 argmax, deliberately.
+#
+# Deliberately smaller than BONUS_EXACT_PHRASE: a category match says "right
+# kind of object", which most of the pool already satisfies, so it should break
+# ties rather than dominate. Pushed to 300+ it starts overriding the constraint
+# phrases and MRR falls away (0.608 at 300).
+BONUS_EXACT_CATEGORY = _tunable("TJ_B_EXACT_CAT", 40.0)
 # --- How BM25's ordering and this module's scoring are combined -------------
 #
 # Stage A used to *replace* retrieve()'s ordering, keeping only a flat
@@ -319,7 +339,7 @@ def _phrases(constraint_texts: list[str]) -> list[str]:
                 phrase = ' '.join(part.split()).strip(' .,;:-').lower()
                 if len(phrase) >= EXACT_MIN_CHARS and phrase not in seen:
                     seen.append(phrase)
-    return seen[:6]
+    return seen[:int(EXACT_MAX_PHRASES)]
 
 
 def _query_profile(state: DialogState) -> tuple[dict[str, float], str]:
@@ -344,7 +364,7 @@ def _query_profile(state: DialogState) -> tuple[dict[str, float], str]:
 
 
 def _score(parent_asin: str, weights: dict[str, float], blob: str, catalog: _Catalog,
-           phrases: tuple[str, ...] = ()) -> float:
+           phrases: tuple[str, ...] = (), category_phrase: str = "") -> float:
     tokens = catalog.tokens(parent_asin)
     total = 0.0
     for term, weight in weights.items():
@@ -363,9 +383,15 @@ def _score(parent_asin: str, weights: dict[str, float], blob: str, catalog: _Cat
     if color and color.group(1).lower() in product_text:
         total += BONUS_COLOR
 
+    if category_phrase and BONUS_EXACT_CATEGORY:
+        if category_phrase in catalog.fields.get(parent_asin, {}).get("categories", "").lower():
+            total += BONUS_EXACT_CATEGORY
+    title_text = catalog.fields.get(parent_asin, {}).get("title", "").lower()
     for phrase in phrases:
         if phrase in product_text:
-            total += BONUS_EXACT_PHRASE
+            total += BONUS_EXACT_PHRASE + BONUS_EXACT_PER_CHAR * len(phrase)
+            if phrase in title_text:
+                total += BONUS_EXACT_TITLE
 
     budget = PRICE_RE.search(blob)
     price = catalog.price.get(parent_asin)
@@ -388,12 +414,14 @@ def rank(candidates: list[Candidate], state: DialogState) -> list[Candidate]:
     weights, blob = _query_profile(state)
     if not weights:
         return list(candidates)
-    phrases = tuple(_phrases(split_dialog(state)[1]))
+    _category, _constraints = split_dialog(state)
+    phrases = tuple(_phrases(_constraints))
+    category_phrase = ' '.join(_category.split()).strip(' .,;:-').lower()
 
     # retrieve() returns its pool already in BM25 order, so a candidate's index
     # *is* its retrieval rank.
     stage_a = {
-        candidate.parent_asin: _score(candidate.parent_asin, weights, blob, catalog, phrases)
+        candidate.parent_asin: _score(candidate.parent_asin, weights, blob, catalog, phrases, category_phrase)
         for candidate in candidates
     }
     if FUSION == "linear":

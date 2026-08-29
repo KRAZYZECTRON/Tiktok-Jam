@@ -31,6 +31,11 @@ WEIGHTS = {
     # RRF is what actually orders the head now, so its parameters matter more
     # to MRR than any of the term weights above.
     "BONUS_EXACT_PHRASE": "TJ_B_EXACT",
+    "BONUS_EXACT_PER_CHAR": "TJ_B_EXACT_CHAR",
+    "BONUS_EXACT_CATEGORY": "TJ_B_EXACT_CAT",
+    "EXACT_MIN_CHARS": "TJ_B_EXACT_MIN",
+    "EXACT_MAX_PHRASES": "TJ_B_EXACT_MAXN",
+    "BONUS_EXACT_TITLE": "TJ_B_EXACT_TITLE",
     "RRF_K": "TJ_RRF_K",
     "WEIGHT_RRF_RETRIEVAL": "TJ_W_RRF_RETRIEVAL",
     "WEIGHT_RRF_STAGE_A": "TJ_W_RRF_STAGE_A",

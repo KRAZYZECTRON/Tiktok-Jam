@@ -13,7 +13,8 @@ Score = 0.50·Hit@10 + 0.30·MRR + 0.20·efficiency, efficiency = (11 − MTTC)/
 | 29 Aug | RRF fusion in `rank()` | 0.9250 | 0.5655 | 2.97 | 0.7928 | ✅ |
 | 29 Aug | dead-turn rotation | 0.9550 | 0.5729 | 2.93 | 0.8108 | ✅ |
 | 29 Aug | rotate on stale query + reset offset on fresh | 0.9950 | 0.5796 | 2.56 | 0.8402 | ✅ |
-| 29 Aug | exact-phrase containment bonus in `rank()` | **0.9950** | **0.6287** | **2.51** | **0.8560** | ✅ |
+| 29 Aug | exact-phrase containment bonus in `rank()` | 0.9950 | 0.6287 | 2.51 | 0.8560 | ✅ |
+| 29 Aug | verbatim category containment | **1.0000** | **0.6406** | **2.47** | **0.8629** | ✅ |
 
 "verified" = re-run independently on a clean checkout of that commit, not just
 quoted from the authoring session. The dialog-merge row is the one intermediate
@@ -21,19 +22,20 @@ nobody re-ran; the rows either side of it are confirmed, so it is bracketed.
 
 ## Per-scenario, current `main` (`e5b3a2f`)
 
-| scenario | n | Hit@10 |
-|----------|---|--------|
-| boundary | 10 | 1.0000 |
-| browsing | 80 | 1.0000 |
-| intent_override | 30 | 1.0000 |
-| buying | 80 | 0.9875 |
+| scenario | n | Hit@10 | MRR | MTTC |
+|----------|---|--------|-----|------|
+| boundary | 10 | 1.0000 | 0.7250 | 2.90 |
+| browsing | 80 | 1.0000 | 0.6260 | 2.29 |
+| buying | 80 | 1.0000 | 0.6009 | 2.04 |
+| intent_override | 30 | 1.0000 | 0.7573 | 3.93 |
 
-**1 miss remains** — `public_0020`, buying, target at pool rank 117.
+**Zero misses.** All 200 public sessions hit, in every scenario.
 
-Hit@10 is effectively saturated, so **MRR is now the binding metric**: 0.6287
-against a 0.995 ceiling, worth 30% of the score. 86 of the hits land at rank 1
-and the rest are spread over ranks 2-10; moving those up is where the remaining
-points are.
+**Hit@10 is maxed, so only MRR and MTTC can still move.** MRR is 0.6406 against
+a ceiling of 1.0 and carries 30% weight; efficiency is 0.8535 and carries 20%.
+Roughly 100 of the 200 hits land at rank 1 and the rest spread over ranks 2-10,
+so about +0.11 of score is theoretically still on the table — all of it in
+telling near-identical clothing items apart.
 `tools/attribution.py` reports MISS_RETRIEVAL 0 and MISS_DIALOG 0: retrieval
 finds the target in all 200 sessions and the conversation extracts what there
 is to extract. The remaining work is MRR, not Hit@10.
@@ -109,6 +111,16 @@ weights holding their current scale.
 
 This is a property of the *simulator*, not of the public split — the hidden 800
 are generated the same way — so it should transfer. Split-half: +0.056 / +0.039.
+
+The same logic applied to the **opening category** (`BONUS_EXACT_CATEGORY`)
+converted the last missed session and took Hit@10 to 1.0000. Every value in
+20-70 reaches 1.0000 within 0.004 of score, so the gain is a band and not a
+spike; shipped at 40, mid-band rather than at the 20 argmax. It is deliberately
+much smaller than the phrase bonus — a category match only says "right kind of
+object", which most of the pool already satisfies, so it breaks ties instead of
+dominating. Pushed to 300 it starts overriding the constraint phrases and MRR
+falls to 0.608. Split-half is the most even result we have: **+0.0466 / +0.0460,
+both halves reaching Hit@10 1.0000.**
 
 ## Weight sensitivity (overfit check)
 

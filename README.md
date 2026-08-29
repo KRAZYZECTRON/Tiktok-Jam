@@ -10,7 +10,7 @@ product inside a Top-10 list, within 10 turns.
 | | Hit@10 | MRR | MTTC | Technical score |
 |---|--------|-----|------|-----------------|
 | Provided BM25 baseline | 0.1250 | 0.0680 | 9.81 | 0.1067 |
-| **This agent** | **0.9950** | **0.6287** | **2.51** | **0.8560** |
+| **This agent** | **1.0000** | **0.6406** | **2.47** | **0.8629** |
 
 200 public sessions, `evaluator/local_evaluator.py`, unmodified.
 `TechnicalScore = 0.50·Hit@10 + 0.30·MRR + 0.20·Efficiency`.
@@ -91,7 +91,8 @@ and narrows.
 builds its hidden intent card from the target's own `features` text, so a
 candidate containing a disclosed constraint verbatim is very likely the target.
 Treating that as a primary sort key rather than another weight took MRR from
-0.580 to 0.629.
+0.580 to 0.629. The same logic on the opening category converted the last
+missed session, taking Hit@10 to 1.0000.
 
 **4. Fuse rankings, not scores.** Replacing BM25's ordering with a lexical score
 threw away hits — of 26 misses at the time, 11 had the target inside BM25's own
@@ -119,11 +120,11 @@ turns), Windows 11, Python 3.14.4, single core — no GPU used by the scored pat
 
 | | |
 |---|---|
-| Cold start (FTS index + IDF table, once per process) | **2.00 s** |
-| Per-turn latency, mean | **31.3 ms** |
-| Per-turn latency, p50 / p95 | 28.1 ms / 68.8 ms |
-| Per-turn latency, p99 / max | 93.1 ms / 132.1 ms |
-| Wall clock, all 200 sessions | **15.7 s** |
+| Cold start (FTS index + IDF table, once per process) | **1.98 s** |
+| Per-turn latency, mean | **30.6 ms** |
+| Per-turn latency, p50 / p95 | 27.5 ms / 69.1 ms |
+| Per-turn latency, p99 / max | 94.0 ms / 122.6 ms |
+| Wall clock, all 200 sessions | **15.1 s** |
 | Prompt tokens | **0** |
 | Completion tokens | **0** |
 | Estimated model cost | **$0.00** |
