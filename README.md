@@ -252,12 +252,21 @@ numbers than the one that sounds more impressive.
 brittle when that wording changes.** `tools/robustness.py` perturbs the
 shopper's phrasing — never the ground truth — and re-scores:
 
-| shopper wording | Hit@10 | score | vs clean | before hardening |
-|---|---|---|---|---|
-| verbatim (as the current simulator emits) | 1.0000 | **0.9531** | — | 0.9522 |
-| casing and punctuation drift | 1.0000 | 0.9305 | −0.023 | 0.9243 |
-| filler + reworded carrier phrase | 0.9900 | **0.9240** | −0.029 | 0.4761 |
-| light lexical paraphrase | 0.9850 | **0.8915** | −0.062 | 0.4340 |
+| shopper wording | mean | spread | worst Hit@10 |
+|---|---|---|---|
+| verbatim (as the simulator emits) | **0.9531** | 0.000 | 1.0000 |
+| casing and punctuation drift | 0.9304 | 0.003 | 1.0000 |
+| filler + reworded carrier | 0.9292 | 0.011 | 0.9900 |
+| light lexical paraphrase | 0.8906 | 0.012 | 0.9800 |
+| stray interjections + foreign fragment | 0.9210 | 0.011 | 0.9900 |
+| adversarial punctuation / decoy colon / FTS metachars | 0.8897 | 0.016 | 0.9750 |
+| truncated mid-sentence | 0.8553 | 0.022 | 0.9300 |
+
+Five perturbation seeds per level; "spread" is max−min across them. Earlier
+revisions of this file quoted **single-seed** figures — the medium number cited
+as 0.9240 turns out to be the *minimum* of five seeds rather than the mean.
+Conservative, but a point estimate with its uncertainty hidden, which is exactly
+the weakness `tools/stability.py` found in the tunables.
 
 The spec states that *"natural-language paraphrasing"* may be added by the
 organizer, so this is a live risk rather than a hypothetical one.
@@ -310,7 +319,12 @@ Robustness here was free rather than profitable, which is the honest claim.
 - **Personalization contributes nothing here** (measured three ways) because the
   benchmark's profiles shop across unrelated categories.
 - **Tuning used all 200 public sessions.** `tools/holdout_check.py` is a
-  split-half stability check, not a holdout.
+  split-half stability check, not a holdout. `tools/stability.py` re-tests every
+  shipped choice over 200 random splits; three of them carry the whole margin and
+  two are now inert.
+- **Truncated input is our weakest case** (0.8553). It is explicitly outside the
+  spec's allowed assumptions — "inputs are pre-cleaned text strings" — so it is
+  measured for honesty rather than defended. A real deployment would need it.
 - **Malformed input is handled but was not, until it was tested.** A non-string
   `user_message` raised `AttributeError`, and `respond()` before `reset()` raised
   `RuntimeError`. Both now degrade, because the rules say an exception may

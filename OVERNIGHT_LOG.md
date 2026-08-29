@@ -119,3 +119,60 @@ to report rather than act on this basis. Flagged in `SCOREBOARD.md` for a human.
 and `data/` untouched. Tool-and-docs only; no source changed.
 
 **Result: adopted** (the tool and the finding).
+
+---
+
+## Iteration 3 — robustness with error bars, and three new perturbation styles
+
+**Chosen because** iteration 2 established that single-draw estimates are
+unreliable — and the robustness numbers quoted in README and SCOREBOARD were
+themselves single-seed point estimates. The same weakness, in claims I had
+already published. Fixing the measurement before adding more claims.
+
+**Added to `tools/robustness.py`:** `--seeds N` reporting mean/min/max/spread,
+plus three perturbation levels chosen for what they probe rather than for
+severity:
+
+- `interject` — a stray clause before the constraint, plus a foreign-language
+  fragment. Probes whether the bounded lead-in prefix in the extractor overflows.
+- `truncate` — a mid-sentence cut, as if the shopper hit send early. Extraction
+  must yield a *shorter* constraint, not a wrong one.
+- `adversarial` — decoy colon, doubled punctuation, FTS metacharacters. Nothing
+  should raise and the real constraint should still survive.
+
+**Results, 5 seeds per level (7,000 sessions):**
+
+| level | mean | spread | worst Hit@10 |
+|---|---|---|---|
+| none | 0.953064 | 0.000 | 1.0000 |
+| light | 0.930350 | 0.003 | 1.0000 |
+| medium | 0.929159 | 0.011 | 0.9900 |
+| heavy | 0.890615 | 0.012 | 0.9800 |
+| interject | 0.920960 | 0.011 | 0.9900 |
+| adversarial | 0.889718 | 0.016 | 0.9750 |
+| truncate | **0.855272** | 0.022 | 0.9300 |
+
+**Two findings:**
+
+1. **The medium figure I have been quoting (0.9240) is the minimum of five
+   seeds, not the mean (0.9292).** Conservative rather than wrong, but a point
+   estimate presented without its uncertainty — precisely what iteration 2
+   criticised in the tunables. README and SCOREBOARD now carry mean and spread,
+   and say plainly that the earlier numbers were single-seed.
+
+2. **Truncation is the weakest case by a clear margin** — 0.8553, costing 0.098,
+   with Hit@10 falling to 0.93 at worst. Mechanism: a mid-string cut leaves text
+   that neither equals a card slot nor reaches the 75% token overlap the fuzzy
+   tier needs.
+
+**Not fixed, and that is a judgement rather than an omission.** Truncation is
+explicitly outside the spec's allowed assumptions — "inputs are pre-cleaned text
+strings" — so it cannot appear in the graded set. Loosening the fuzzy threshold
+to catch it would weaken discrimination on inputs that *are* in scope, and a 0.6
+threshold was already measured worse (0.568 vs 0.597 at 0.75). Measured and
+documented as a real deployment gap rather than defended.
+
+**Verified after:** clean 0.953064 / Hit@10 1.0000, 78 tests pass, `evaluator/`
+and `data/` untouched. Tool-and-docs only.
+
+**Result: adopted** (the instrumentation and the corrected figures).

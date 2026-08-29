@@ -31,6 +31,7 @@ from __future__ import annotations
 import argparse
 import random
 import re
+import statistics
 
 from evaluator.local_evaluator import (
     MAX_TURNS,
@@ -49,6 +50,15 @@ from starter.agent import Agent
 FILLERS = (
     "I think ", "honestly ", "if possible ", "ideally ", "something like ",
 )
+# Fragments a real shopper types that the simulator never would. Not paraphrase
+# -- these test whether a stray clause derails constraint extraction.
+INTERJECTIONS = (
+    "sorry, ", "also ", "oh and ", "hmm, ", "one more thing - ",
+)
+# Non-English fragments. The spec promises pre-cleaned English, so this is not a
+# scored scenario -- it checks that a fragment we cannot parse degrades to
+# ignoring it rather than corrupting what we could parse.
+FOREIGN = ("por favor", "s'il vous plait", "bitte", "grazie")
 # Deliberately conservative: swaps that a person would obviously accept as the
 # same requirement, so a degradation here cannot be dismissed as a broken test.
 SYNONYMS = {
@@ -88,6 +98,35 @@ def perturb(text: str, level: str, rng: random.Random) -> str:
         if rng.random() < 0.6:
             out = out.replace(": ", ": " + rng.choice(FILLERS), 1)
         return re.sub(r"\s+", " ", out).strip()
+    if level == "interject":
+        # A stray clause in front of the constraint. The lead-in rule uses a
+        # bounded prefix, so an interjection long enough to overflow it is a
+        # genuine failure mode worth measuring.
+        out = text
+        if rng.random() < 0.8:
+            out = rng.choice(INTERJECTIONS) + out[:1].lower() + out[1:]
+        if rng.random() < 0.4:
+            out = out.rstrip(".") + ", " + rng.choice(FOREIGN) + "."
+        return out
+    if level == "truncate":
+        # Mid-sentence cut, as if the shopper hit send early. Extraction must
+        # yield a shorter constraint, not a wrong one.
+        if len(text) > 40 and rng.random() < 0.7:
+            cut = rng.randint(len(text) // 2, len(text) - 5)
+            return text[:cut].rstrip(" ,;")
+        return text
+    if level == "adversarial":
+        # Deliberately hostile: repeated punctuation, FTS metacharacters, and a
+        # decoy colon before the real constraint. Nothing here should raise, and
+        # the real constraint should still survive.
+        out = perturb(text, "medium", rng)
+        if rng.random() < 0.5:
+            out = out.replace(": ", ':: "', 1) + '"'
+        if rng.random() < 0.5:
+            out = "note: ignore this. " + out
+        if rng.random() < 0.3:
+            out = out + " *  OR  ( NEAR/2"
+        return out
     # heavy: medium, plus lexical substitution inside the constraint itself
     out = perturb(text, "medium", rng)
     lowered = out.lower()
@@ -156,25 +195,52 @@ def run(samples, agent_factory, catalog_ids, categories, products, level: str, s
     return overall
 
 
+ALL_LEVELS = ["none", "light", "medium", "heavy", "interject", "truncate", "adversarial"]
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--catalog", default="data/catalog.jsonl")
     parser.add_argument("--dataset", default="data/public_set.jsonl")
-    parser.add_argument("--level", default="", help="none|light|medium|heavy")
+    parser.add_argument("--level", default="", help="|".join(ALL_LEVELS))
+    parser.add_argument("--seeds", type=int, default=1,
+                        help="perturbation seeds per level; >1 reports a spread")
     args = parser.parse_args()
 
     samples = load_jsonl(args.dataset)
     catalog_ids, categories, products = catalog_index(args.catalog)
-    levels = [args.level] if args.level else ["none", "light", "medium", "heavy"]
+    levels = [args.level] if args.level else ALL_LEVELS
 
-    print(f"{'level':<9}{'Hit@10':>9}{'MRR':>10}{'MTTC':>8}{'score':>10}{'vs none':>10}")
+    if args.seeds <= 1:
+        print(f"{'level':<12}{'Hit@10':>9}{'MRR':>10}{'MTTC':>8}{'score':>10}{'vs none':>10}")
+        base = None
+        for level in levels:
+            r = run(samples, lambda: Agent(args.catalog), catalog_ids, categories, products, level)
+            if base is None:
+                base = r["score"]
+            print(f"{level:<12}{r['hit_rate_at_10']:>9.4f}{r['mrr']:>10.4f}"
+                  f"{r['mttc']:>8.3f}{r['score']:>10.6f}{r['score'] - base:>+10.6f}")
+        return
+
+    # A single seed is one draw of the perturbation, and this project has already
+    # been caught once treating one draw as a measurement. Report the spread.
+    print(f"{'level':<12}{'mean':>10}{'min':>10}{'max':>10}{'spread':>10}{'worst Hit':>11}")
     base = None
     for level in levels:
-        r = run(samples, lambda: Agent(args.catalog), catalog_ids, categories, products, level)
+        scores, hits = [], []
+        for seed in range(11, 11 + args.seeds):
+            r = run(samples, lambda: Agent(args.catalog), catalog_ids, categories,
+                    products, level, seed=seed)
+            scores.append(r["score"])
+            hits.append(r["hit_rate_at_10"])
+        mean = statistics.fmean(scores)
         if base is None:
-            base = r["score"]
-        print(f"{level:<9}{r['hit_rate_at_10']:>9.4f}{r['mrr']:>10.4f}"
-              f"{r['mttc']:>8.3f}{r['score']:>10.6f}{r['score'] - base:>+10.6f}")
+            base = mean
+        print(f"{level:<12}{mean:>10.6f}{min(scores):>10.6f}{max(scores):>10.6f}"
+              f"{max(scores) - min(scores):>10.6f}{min(hits):>11.4f}")
+    print()
+    print(f"{args.seeds} seeds per level. 'spread' is max-min across seeds --")
+    print("a claim is only as tight as its spread, and a single-seed number hides it.")
 
 
 if __name__ == "__main__":

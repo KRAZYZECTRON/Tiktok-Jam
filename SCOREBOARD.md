@@ -362,12 +362,26 @@ Most of the score above ~0.87 rests on three string-equality bets. The spec says
 fail at once. `tools/robustness.py` perturbs the shopper's wording — never the
 ground truth — and re-scores.
 
-| shopper wording | first measured | now |
-|---|---|---|
-| verbatim | 0.9522 | **0.9531** |
-| casing / punctuation | 0.9243 | 0.9305 |
-| filler + reworded carrier | **0.4761** | **0.9240** |
-| light lexical paraphrase | **0.4340** | **0.8915** |
+| shopper wording | first measured | now (mean of 5 seeds) | spread |
+|---|---|---|---|
+| verbatim | 0.9522 | **0.9531** | 0.000 |
+| casing / punctuation | 0.9243 | 0.9304 | 0.003 |
+| filler + reworded carrier | **0.4761** | **0.9292** | 0.011 |
+| light lexical paraphrase | **0.4340** | **0.8906** | 0.012 |
+| stray interjections + foreign fragment | not measured | 0.9210 | 0.011 |
+| adversarial punctuation / decoy colon | not measured | 0.8897 | 0.016 |
+| truncated mid-sentence | not measured | **0.8553** | 0.022 |
+
+The last three levels were added later and found new exposure. **Truncation is
+the weakest case by a clear margin** — a half-typed message costs 0.098 and
+drops Hit@10 to 0.93 at worst. It is explicitly outside the spec's allowed
+assumptions ("inputs are pre-cleaned text strings"), so it is measured rather
+than defended; a real deployment would have to handle it.
+
+Single-seed figures were previously quoted here. The medium number given as
+0.9240 is the *minimum* of five seeds, not the mean — conservative, but a point
+estimate with its uncertainty hidden, which is the same weakness `stability.py`
+found in the tunables.
 
 A paraphrasing shopper cost **0.48** and now costs **0.03**.
 
