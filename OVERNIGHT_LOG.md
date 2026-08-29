@@ -1,0 +1,72 @@
+# Overnight log
+
+Unsupervised iterations. Newest last. Every number here was re-run on a clean
+tree before being written down.
+
+Baseline defended throughout:
+
+| | |
+|---|---|
+| clean 200 sessions | 0.953064, Hit@10 1.0000 |
+| robustness | none 0.9531 / light 0.9305 / medium 0.9240 / heavy 0.8915 |
+| `evaluator/` and `data/` | untouched (checked each iteration) |
+| pushes | none — all work is committed locally for morning review |
+
+---
+
+## Iteration 1 — a real test suite
+
+**Chosen because** `tests/` held only the organizer's three tests and *nothing*
+covered the six modules we wrote. Technical Execution is 35% of judging and the
+largest single gap was that a reader had no way to tell which behaviours are
+intentional. It is also the highest-value work that cannot regress the score,
+which matters when nobody is reviewing.
+
+**Added 75 tests across five files** (78 total with the organizer's):
+
+| file | n | what it pins down |
+|---|---|---|
+| `test_simcard.py` | 10 | card reconstruction, checked *against the evaluator's own `intent_card()`* rather than against our idea of it |
+| `test_dialog.py` | 18 | slot accumulation, override erasure, boundary-vs-exhausted, probe order, dead-turn counter, the 10-turn clamp |
+| `test_orchestrate.py` | 18 | strategy selection at every boundary, the `HOLD_UNTIL_TURN` bound, window paging |
+| `test_profile.py` | 12 | signature stability, distillation, long-term memory, junk tolerance |
+| `test_agent_contract.py` | 17 | the interface the organizer actually scores, plus hardening and the pure-stdlib guarantee |
+
+**Two tests failed first, and in both cases the test was wrong, not the code.**
+Worth recording because both would have been easy to "fix" in the wrong
+direction:
+
+1. `card_slots({})` returns `("product",)`, not `()`. The evaluator does
+   `str(product.get("title") or "product")`, so a product with nothing usable
+   still yields the literal string `"product"` as its only slot. Mirroring that
+   exactly is the point of the module; "tidying" it would silently change which
+   candidates count as consistent. Test rewritten to assert the mirror.
+2. "turn 1 always holds back" is false against a three-product fixture — the
+   consistent set is immediately tiny, so `ANSWER_IF_CONSISTENT` correctly fires
+   and turn 1 answers. That test was asserting a property of the fixture, not of
+   the agent. Restated as an invariant: *whenever* the list is empty, the message
+   must read as a question.
+
+**Tests worth singling out**, because they encode constraints that are
+expensive to rediscover:
+
+- `test_the_bound_always_wins_past_hold_until_turn` — removing `HOLD_UNTIL_TURN`
+  scores 0.24. The contract says never remove it; now something enforces that.
+- `test_runs_with_numpy_and_sentence_transformers_absent` — simulates the
+  absence of numpy, torch and sentence-transformers together and asserts the
+  agent still answers. This is the pure-stdlib guarantee, checked rather than
+  asserted in prose.
+- `test_scored_path_opens_no_socket` — monkeypatches `socket.socket` to raise.
+  Verifies the offline claim by making a violation fail loudly.
+- `test_ask_attribute_is_allowed_or_none` — an out-of-vocabulary attribute is
+  silently coerced to `"other"` by the simulator, wasting the ask. Silent
+  failures deserve tests more than loud ones.
+- `test_extracts_a_constraint_from_a_paraphrased_carrier` — guards the fix that
+  took paraphrase robustness from 0.48 to 0.03. Easy to regress by "simplifying"
+  the three-step extractor.
+
+**Verified after:** clean 0.953064 / Hit@10 1.0000; robustness none 0.953064,
+light 0.930547, medium 0.924029, heavy 0.891482 — all identical to baseline, as
+expected for a test-only change. `evaluator/` and `data/` untouched.
+
+**Result: adopted.** Tests only, no source changed.
