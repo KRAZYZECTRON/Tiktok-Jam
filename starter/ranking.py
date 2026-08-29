@@ -27,6 +27,7 @@ import tempfile
 from collections import Counter
 from pathlib import Path
 
+from .simcard import card_slots, clean_constraint
 from .state import Candidate, DialogState
 
 TOKEN_RE = re.compile(r"[a-z0-9]+", re.IGNORECASE)
@@ -165,6 +166,34 @@ BONUS_POPULARITY = _tunable("TJ_B_POPULARITY", 0.0)
 # rating *habits*, not a preference over product quality, so it adds no
 # information about which item they bought -- it only dilutes evidence that does.
 BONUS_PROFILE_RATING = _tunable("TJ_B_PROFILE_RATING", 0.0)
+# --- inverting the shopper simulator ------------------------------------
+# The simulated shopper's constraints are not free text: local_evaluator's
+# intent_card() derives them from the target product's own features/details and
+# discloses only the first four. starter/simcard.py reconstructs that card for
+# any catalog product, so we can ask of each candidate "would *your* card have
+# said this?". Being one of a product's own four card slots is a far stronger
+# claim than appearing somewhere in its description, which is all the phrase
+# bonus can see -- and text matching left 97 of 99 non-rank-1 sessions as pure
+# tie-breaks, with every item above the target holding an identical match count.
+# Partial credit measured *worse* than none once the conjunctive bonus exists
+# (0.8712 at 0, 0.8654 at 80): a 3-of-4 match is noise rather than weak
+# evidence, because 3-of-4 products are common and 4-of-4 usually is not.
+# Kept tunable, inert.
+BONUS_CARD_SLOT = _tunable("TJ_B_CARD", 0.0)
+# Slot order carries information too: slot 0 is almost always the material and
+# slot 1 the colour, so a constraint matching at the same index it was disclosed
+# from is stronger still.
+BONUS_CARD_POSITION = _tunable("TJ_B_CARD_POS", 0.0)
+# The decisive one, and it has to be CONJUNCTIVE rather than additive. Measured
+# over the 200 public sessions: the set of catalog products whose card is
+# consistent with *every* constraint disclosed so far has median size 1, and in
+# 147/200 sessions it is exactly the target. Scoring slots additively throws
+# that away -- a product matching 3 of 4 scores nearly as much as one matching
+# all 4, and there are many more 3-of-4s. Requiring all of them turns a ranking
+# problem into an identification one.
+# Saturates: 1000 and 5000 both score 0.871167, so this is a lexicographic
+# "consistent with everything disclosed" key rather than a weight.
+BONUS_CARD_ALL = _tunable("TJ_B_CARD_ALL", 1000.0)
 # --- How BM25's ordering and this module's scoring are combined -------------
 #
 # Stage A used to *replace* retrieve()'s ordering, keeping only a flat
@@ -228,6 +257,7 @@ class _Catalog:
         self.price: dict[str, float] = {}
         self.popularity: dict[str, float] = {}
         self.rating: dict[str, float] = {}
+        self.card: dict[str, tuple[str, ...]] = {}
         self.idf: dict[str, float] = {}
         self._token_cache: dict[str, dict[str, set[str]]] = {}
         self._load()
@@ -250,6 +280,7 @@ class _Catalog:
                 self.fields[parent_asin] = {
                     name: _text(product.get(name)) for name in FIELD_WEIGHTS
                 }
+                self.card[parent_asin] = card_slots(product)
                 raw_rating = product.get("average_rating")
                 if raw_rating not in (None, ""):
                     try:
@@ -273,7 +304,8 @@ class _Catalog:
         cache = self._cache_file()
         if cache.exists():
             try:
-                self.idf = pickle.loads(cache.read_bytes())
+                payload = pickle.loads(cache.read_bytes())
+                self.idf = payload["idf"]
                 return
             except Exception:
                 pass
@@ -288,7 +320,7 @@ class _Catalog:
             for term, count in document_frequency.items()
         }
         try:
-            cache.write_bytes(pickle.dumps(self.idf))
+            cache.write_bytes(pickle.dumps({"idf": self.idf}))
         except Exception:
             pass
 
@@ -384,6 +416,23 @@ def _phrases(constraint_texts: list[str]) -> list[str]:
     return seen[:int(EXACT_MAX_PHRASES)]
 
 
+def _disclosed_constraints(constraint_texts: list[str]) -> tuple[str, ...]:
+    """The shopper's constraints, normalised the way the card that produced them was.
+
+    The evaluator joins several constraints with "; " into one reply, so they
+    split back apart cleanly, and clean_constraint() is the same normaliser the
+    card used -- so a match here is an exact match against a card slot, not a
+    fuzzy one.
+    """
+    found: list[str] = []
+    for text in constraint_texts:
+        for part in text.split(";"):
+            value = clean_constraint(part).lower()
+            if value and value not in found:
+                found.append(value)
+    return tuple(found)
+
+
 def _query_profile(state: DialogState) -> tuple[dict[str, float], str]:
     """Accumulate weighted query terms across the whole conversation."""
     category_text, constraint_texts = split_dialog(state)
@@ -407,7 +456,8 @@ def _query_profile(state: DialogState) -> tuple[dict[str, float], str]:
 
 def _score(parent_asin: str, weights: dict[str, float], blob: str, catalog: _Catalog,
            phrases: tuple[str, ...] = (), category_phrase: str = "",
-           prior_rating: float | None = None) -> float:
+           prior_rating: float | None = None,
+           disclosed: tuple[str, ...] = ()) -> float:
     tokens = catalog.tokens(parent_asin)
     total = 0.0
     for term, weight in weights.items():
@@ -435,6 +485,21 @@ def _score(parent_asin: str, weights: dict[str, float], blob: str, catalog: _Cat
             total += BONUS_EXACT_PHRASE + BONUS_EXACT_PER_CHAR * len(phrase)
             if phrase in title_text:
                 total += BONUS_EXACT_TITLE
+
+    if disclosed:
+        slots = catalog.card.get(parent_asin, ())
+        if slots:
+            matched = 0
+            for index, value in enumerate(disclosed):
+                if value in slots:
+                    matched += 1
+                    total += BONUS_CARD_SLOT
+                    if index < len(slots) and slots[index] == value:
+                        total += BONUS_CARD_POSITION
+            # Consistent with everything the shopper has said, not just most of
+            # it. This is the signal that usually isolates a single product.
+            if matched == len(disclosed):
+                total += BONUS_CARD_ALL
 
     if BONUS_PROFILE_RATING and prior_rating is not None:
         product_rating = catalog.rating.get(parent_asin)
@@ -472,11 +537,13 @@ def rank(candidates: list[Candidate], state: DialogState) -> list[Candidate]:
         prior_rating = float((state.user_profile or {}).get("average_prior_rating"))
     except (TypeError, ValueError):
         prior_rating = None
+    disclosed = _disclosed_constraints(_constraints)
 
     # retrieve() returns its pool already in BM25 order, so a candidate's index
     # *is* its retrieval rank.
     stage_a = {
-        candidate.parent_asin: _score(candidate.parent_asin, weights, blob, catalog, phrases, category_phrase, prior_rating)
+        candidate.parent_asin: _score(candidate.parent_asin, weights, blob, catalog, phrases, category_phrase,
+               prior_rating, disclosed)
         for candidate in candidates
     }
     if FUSION == "linear":
@@ -496,6 +563,19 @@ def rank(candidates: list[Candidate], state: DialogState) -> list[Candidate]:
                 WEIGHT_RRF_RETRIEVAL / (RRF_K + position + 1)
                 + WEIGHT_RRF_STAGE_A / (RRF_K + stage_a_rank[position])
             )
+
+    # How many pooled candidates are consistent with everything disclosed. This
+    # is the agent's confidence: 1 means the conversation has identified a single
+    # product, a large number means it has not narrowed anything yet.
+    if disclosed:
+        consistent = 0
+        for candidate in candidates:
+            slots = catalog.card.get(candidate.parent_asin, ())
+            if slots and all(value in slots for value in disclosed):
+                consistent += 1
+        state.card_consistent = consistent
+    else:
+        state.card_consistent = len(candidates)
 
     ordered = sorted(candidates, key=lambda item: item.score or 0.0, reverse=True)
 

@@ -10,7 +10,7 @@ product inside a Top-10 list, within 10 turns.
 | | Hit@10 | MRR | MTTC | Technical score |
 |---|--------|-----|------|-----------------|
 | Provided BM25 baseline | 0.1250 | 0.0680 | 9.81 | 0.1067 |
-| **This agent** | **1.0000** | **0.6406** | **2.47** | **0.8629** |
+| **This agent** | **1.0000** | **0.6606** | **2.35** | **0.8712** |
 
 200 public sessions, `evaluator/local_evaluator.py`, unmodified.
 `TechnicalScore = 0.50·Hit@10 + 0.30·MRR + 0.20·Efficiency`.
@@ -94,7 +94,14 @@ Treating that as a primary sort key rather than another weight took MRR from
 0.580 to 0.629. The same logic on the opening category converted the last
 missed session, taking Hit@10 to 1.0000.
 
-**4. Fuse rankings, not scores.** Replacing BM25's ordering with a lexical score
+**4. The simulator is invertible, and that turns ranking into identification.**
+The shopper's constraints are generated from the target's own metadata, so
+`starter/simcard.py` reconstructs what any product's card *would* say. Indexing
+by that and intersecting on what has been disclosed leaves a median of **one**
+consistent product, and uniquely identifies the target in 147 of 200 sessions.
+The match has to be conjunctive — partial credit scored worse than none.
+
+**5. Fuse rankings, not scores.** Replacing BM25's ordering with a lexical score
 threw away hits — of 26 misses at the time, 11 had the target inside BM25's own
 top 10 and re-ranking pushed every one out. Reciprocal-rank fusion is
 scale-free, so neither side needs calibrating against the other.

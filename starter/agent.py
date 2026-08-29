@@ -18,7 +18,15 @@ from .state import DialogState
 # only top_k candidates caps Hit@10 at 0.185 however good the ranker is.
 # TJ_POOL_K=10 with TJ_RANK=off reproduces the original weak baseline exactly,
 # which is how an A/B on the same session subset is taken.
+MAX_TURNS = 10
 POOL_K = int(os.environ.get("TJ_POOL_K", "500"))
+# Hold back recommendations while the conversation has not narrowed the catalog.
+# The evaluator stops at the first hit and scores the rank *at that turn*, so a
+# rank-5 hit on turn 2 permanently locks in MRR 0.2 for that session. Waiting a
+# turn for the shopper to disclose more and then hitting at rank 1 is worth
+# +0.0012 of score against -0.0002 for the later turn -- 6:1 in favour of
+# waiting. 0 disables the behaviour entirely.
+CONFIDENCE_MAX = int(os.environ.get("TJ_CONFIDENCE", "0"))
 
 
 class Agent:
@@ -58,6 +66,16 @@ class Agent:
         rotating = os.environ.get("TJ_ROTATE") != "off"
         offset = getattr(state, "exhausted_turns", 0) * top_k if rotating else 0
         window = ranked[offset:offset + top_k] or ranked[:top_k]
+        # Not confident yet: ask, but do not spend the session's one scored
+        # guess on a list we expect to rank the target low in.
+        if (
+            CONFIDENCE_MAX
+            and turn < MAX_TURNS
+            and getattr(state, "card_consistent", 0) > CONFIDENCE_MAX
+            and getattr(state, "ask_attribute", None) is not None
+        ):
+            window = []
+
         usage = {"prompt_tokens": 0, "completion_tokens": 0}
         if os.environ.get("RANK_USE_LLM") == "1":
             from .llm_rerank import usage as llm_usage

@@ -14,7 +14,8 @@ Score = 0.50·Hit@10 + 0.30·MRR + 0.20·efficiency, efficiency = (11 − MTTC)/
 | 29 Aug | dead-turn rotation | 0.9550 | 0.5729 | 2.93 | 0.8108 | ✅ |
 | 29 Aug | rotate on stale query + reset offset on fresh | 0.9950 | 0.5796 | 2.56 | 0.8402 | ✅ |
 | 29 Aug | exact-phrase containment bonus in `rank()` | 0.9950 | 0.6287 | 2.51 | 0.8560 | ✅ |
-| 29 Aug | verbatim category containment | **1.0000** | **0.6406** | **2.47** | **0.8629** | ✅ |
+| 29 Aug | verbatim category containment | 1.0000 | 0.6406 | 2.47 | 0.8629 | ✅ |
+| 29 Aug | conjunctive intent-card consistency | **1.0000** | **0.6606** | **2.35** | **0.8712** | ✅ |
 
 "verified" = re-run independently on a clean checkout of that commit, not just
 quoted from the authoring session. The dialog-merge row is the one intermediate
@@ -24,10 +25,10 @@ nobody re-ran; the rows either side of it are confirmed, so it is bracketed.
 
 | scenario | n | Hit@10 | MRR | MTTC |
 |----------|---|--------|-----|------|
-| boundary | 10 | 1.0000 | 0.7250 | 2.90 |
-| browsing | 80 | 1.0000 | 0.6260 | 2.29 |
-| buying | 80 | 1.0000 | 0.6009 | 2.04 |
-| intent_override | 30 | 1.0000 | 0.7573 | 3.93 |
+| boundary | 10 | 1.0000 | 0.7283 | 2.90 |
+| browsing | 80 | 1.0000 | 0.6598 | 2.19 |
+| buying | 80 | 1.0000 | 0.6294 | 1.91 |
+| intent_override | 30 | 1.0000 | 0.7231 | 3.77 |
 
 **Zero misses.** All 200 public sessions hit, in every scenario.
 
@@ -122,6 +123,43 @@ dominating. Pushed to 300 it starts overriding the constraint phrases and MRR
 falls to 0.608. Split-half is the most even result we have: **+0.0466 / +0.0460,
 both halves reaching Hit@10 1.0000.**
 
+## Inverting the shopper simulator — the identification result
+
+`local_evaluator.intent_card()` does not invent constraints. It derives them
+from the target product's **own** features/details, inserts material at slot 0
+and colour at slot 1, and discloses only the first four. `starter/simcard.py`
+reconstructs that card for any catalog product — verified byte-identical to the
+evaluator's output on all 200 targets.
+
+That makes the simulator invertible, and the measurement is the striking part.
+Indexing every product by its own card slots and intersecting on what the
+shopper has disclosed:
+
+| consistent products | count |
+|---|---|
+| median set size | **1** |
+| sessions where the target is uniquely identified | **147 / 200** |
+| sessions with ≤5 consistent | 164 / 200 |
+| sessions with ≤10 consistent | 171 / 200 |
+
+**The conversation almost always contains enough information to name exactly one
+product.** The job is identification, not ranking — and the ranker was throwing
+that away.
+
+The bonus must be **conjunctive**. Scoring slots additively scored *worse* than
+not scoring them at all (0.8654 vs 0.8712) because 3-of-4 matches are common
+while 4-of-4 usually is not, so partial credit is noise. Requiring consistency
+with everything disclosed is what isolates the product. It saturates (1000 and
+5000 score identically), so it is a lexicographic key, not a weight.
+
+Split-half +0.0101 / +0.0065, positive on both.
+
+**Headroom left:** ranking uniformly among the consistent set would give MRR
+≈ 0.816; we are at 0.661. The gap is early turns — with only the two hard
+constraints disclosed the consistent set has median size 23, and the evaluator
+scores the rank at the *first* hit, so an early low-rank hit locks in a poor
+reciprocal rank for that session.
+
 ## Tested and rejected
 
 Recorded so nobody spends hours re-deriving them. All remain exposed as
@@ -129,6 +167,7 @@ tunables at inert defaults, so each is one env var away from reproducing.
 
 | idea | result | why it failed |
 |------|--------|---------------|
+| **Confidence-gated withholding** | 0.8712 → 0.8668 at best | Follows directly from the headroom note above: hold back recommendations while the consistent set is large, so the session's first hit lands at a better rank. MRR does rise sharply (0.661 → 0.773) — but Hit@10 collapses to 0.90 because sessions run out of turns before confidence arrives, and Hit@10 carries 0.50 weight against MRR's 0.30. The per-session arithmetic said 6:1 in favour of waiting; it was wrong because it assumed the later hit still happens. `TJ_CONFIDENCE` keeps it reproducible, disabled. |
 | **Popularity prior** (`log1p(rating_number)`) | 0.8629 → 0.8488 at best non-zero | The target *is* a real purchase, so this sounded well-founded. It drives MTTC down hard (2.47 → 1.91) but knocks Hit@10 off 1.0000 and MRR with it: a prior on "what people buy", competing with evidence about "what this shopper described" rather than complementing it. |
 | **Profile-rating personalization** | 0.8629 → 0.8555 at worst | Matching the catalog's `average_rating` to the profile's `average_prior_rating`. A named innovation direction in the spec, so worth testing, but `average_prior_rating` describes the shopper's rating *habits*, not a preference over quality — no information about which item they bought, and it dilutes evidence that does. |
 | **Length-scaled phrase bonus** | flat to −0.001 | A longer verbatim match ought to be less coincidental, but containment is already near-binary here. |

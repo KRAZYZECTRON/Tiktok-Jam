@@ -38,3 +38,6 @@ class DialogState:
     #   to disclose. agent.py uses it to slide the returned window down the
     #   ranked list, so a dead turn shows the next ten instead of the same ten.
     exhausted_turns: int = 0
+    # Set by ranking.rank(): how many pooled candidates are still consistent
+    # with every disclosed constraint. 1 = identified, large = still guessing.
+    card_consistent: int = 0
