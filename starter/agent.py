@@ -16,18 +16,26 @@ from .state import DialogState
 
 # retrieve() fills a wide pool; rank() narrows it to the top_k the evaluator
 # scores. Measured recall of the ground truth inside retrieve()'s own ordering:
-# recall@10 = 0.185, recall@100 = 0.525, recall@500 = 0.860 -- so handing rank()
-# only top_k candidates caps Hit@10 at 0.185 however good the ranker is.
+# recall@10 = 0.185, recall@100 = 0.525, recall@500 = 0.860, median rank 73 --
+# so handing rank() only top_k candidates caps Hit@10 at 0.185 however good the
+# ranker is. Re-verified after the retrieval merge: unchanged, because with the
+# dense leg off the fused ordering reduces to the same BM25 ranking.
 # TJ_POOL_K=10 with TJ_RANK=off reproduces the original weak baseline exactly,
 # which is how an A/B on the same session subset is taken.
 MAX_TURNS = 10
 POOL_K = int(os.environ.get("TJ_POOL_K", "500"))
-# Hold back recommendations while the conversation has not narrowed the catalog.
-# The evaluator stops at the first hit and scores the rank *at that turn*, so a
-# rank-5 hit on turn 2 permanently locks in MRR 0.2 for that session. Waiting a
-# turn for the shopper to disclose more and then hitting at rank 1 is worth
-# +0.0012 of score against -0.0002 for the later turn -- 6:1 in favour of
-# waiting. 0 disables the behaviour entirely.
+# Hold back while the *consistent set* is large, unbounded. TESTED AND REJECTED,
+# left at 0.
+#
+# The argument for it was a per-session trade: a rank-5 hit on turn 2 locks in
+# MRR 0.2, so waiting for a rank-1 hit looked worth +0.0012 against -0.0002 for
+# the later turn, 6:1 in favour of waiting. **That arithmetic was wrong** -- it
+# assumed the later hit still happens. Unbounded, a session whose set never
+# shrinks never answers at all: MRR rose 0.661 -> 0.773 but Hit@10 collapsed to
+# 0.90, and Hit@10 carries 0.50 weight against MRR's 0.30.
+#
+# MIN_DISCLOSED below is the bounded version that works. This one is kept only
+# so the rejected variant stays reproducible.
 CONFIDENCE_MAX = int(os.environ.get("TJ_CONFIDENCE", "0"))
 # Bounded hold-back. The evaluator caps disclosure at two constraints per reply
 # and scores the rank at the *first* hit, so answering before the shopper has
@@ -41,17 +49,24 @@ CONFIDENCE_MAX = int(os.environ.get("TJ_CONFIDENCE", "0"))
 # (Hit@10 1.0000 -> 0.90) because a session whose set never shrinks never
 # answered at all.
 #
-# Grid over both parameters (Hit@10 / score):
-#   hold<=2 min=4  1.0000 / 0.9122   <- shipped
-#   hold<=2 min=5  1.0000 / 0.9120      insensitive to min, because the turn-2
-#   hold<=2 min=6  1.0000 / 0.9120      bound caps the wait regardless
-#   hold<=3 min=4  0.9850 / 0.9026
-#   hold<=3 min=5  0.2750 / 0.2438   <- cliff
-#   hold<=4 min=5  0.0650 / 0.0558
+# Grid over both parameters, re-measured against the current pipeline
+# (Hit@10 / score), with the shipped ANSWER_IF_CONSISTENT=4:
+#   hold<=2 min=3   1.0000 / 0.9531   <- shipped
+#   hold<=3 min=5   0.8650 / 0.8279
+#   hold<=10 min=9  0.7900 / 0.7617
+# and with early-answering disabled:
+#   hold<=3 min=5   0.2400 / 0.2215
+#   hold<=10 min=9  0.0000 / 0.000000  <- total collapse
+#
 # The cliff is why HOLD_UNTIL_TURN matters more than MIN_DISCLOSED: most
 # sessions never disclose more than four constraints, so a threshold that
 # cannot be met combined with a late bound means never answering at all. At
 # hold<=2 that failure mode is unreachable -- turn 3 always answers.
+#
+# TWO mechanisms defend this, and only one used to be documented.
+# ANSWER_IF_CONSISTENT below also rescues a session whose candidate set has
+# already collapsed. Remove either and a mis-set threshold degrades; remove both
+# and the agent scores zero. Do not delete it as a +0.0037 nicety.
 # 4 was optimal when the ranker was weaker (MRR 0.66). As ranking improved the
 # balance moved: with MRR at 0.95 an extra turn of waiting buys much less, and 3
 # now scores better (0.9464 vs 0.9431, split-half +0.0031/+0.0035). Re-check

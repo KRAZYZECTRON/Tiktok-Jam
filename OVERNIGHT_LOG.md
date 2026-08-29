@@ -411,3 +411,54 @@ fails loudly instead of sitting in the file for a week.
 pass, `evaluator/` and `data/` untouched. Docs and verifier only.
 
 **Result: adopted.**
+
+---
+
+## Iteration 9 — auditing the claims inside shipped code, and a miss of my own
+
+**Chosen because** iteration 8 found `SCOREBOARD.md` contradicting itself, and
+the same drift risk applies to the `NOTES_*` files and — worse — to justification
+comments inside `starter/`, which a judge reads directly. Nothing had checked
+either all night.
+
+**The first finding was a miss from iteration 4.** That iteration corrected the
+stale hold-back cliff figure and its log entry says it fixed "CLAUDE.md,
+SCOREBOARD.md and agent.py". It did not fix `agent.py` — the grid at lines 45-50
+still read `hold<=3 min=5  0.2750 / 0.2438`, the figure measured before
+`ANSWER_IF_CONSISTENT` existed. **I reported a fix I had not made.** Now
+corrected, with both the early-answering-on and -off rows and the note that two
+mechanisms defend that failure.
+
+**`recall@10 = 0.185 / @100 = 0.525 / @500 = 0.860`, asserted in `agent.py` as
+the justification for `POOL_K = 500`, re-measured: exactly unchanged.** A rare
+case where nothing had drifted, and the reason is instructive — with the dense
+leg off, the merged intent-routed retrieval reduces to the same BM25 ordering,
+exactly as claimed when it was merged. Only the median rank moved, 86 -> 73;
+`agent.py` now says 73 and records that the claim was re-verified post-merge.
+
+**A third comment stated reasoning I later disproved.** The `CONFIDENCE_MAX`
+block still carried the per-session "6:1 in favour of waiting" arithmetic. That
+argument was *wrong* — it assumed the delayed hit still happens, and unbounded
+holding collapsed Hit@10 to 0.90. The comment now says so, and points at
+`MIN_DISCLOSED` as the bounded version that works.
+
+**`NOTES_ranking.md` had a stale "Open questions / next" section, wrong in all
+four lines**, sitting mid-file where it reads as current guidance:
+
+| open question, 28 Aug | reality now |
+|---|---|
+| confirm whether scoring is offline before building on a model | answered by measurement instead; both optional paths built, measured, disabled |
+| stage A weights unswept, cheap headroom | swept; two are now inert |
+| `ask_attribute` still hardcoded `None`, biggest lever left | implemented — it *was* the biggest lever, 0.205 -> 0.87 |
+| pool ceiling 0.860, above that needs dense retrieval | both halves wrong: ceiling retired, and dense measured harmful |
+
+Rewritten as a resolved table rather than deleted. What was open at the time is
+part of the reasoning; read alone it was simply misleading.
+
+**Verified after:** 80 tests pass, 19 documented claims re-verify, clean
+0.953064 / Hit@10 1.0000, `evaluator/` and `data/` untouched. Comments and docs
+only; no executable change.
+
+**Result: adopted.** The lesson worth keeping is the first one: iteration 4
+claimed a fix in three files and delivered it in two, and nothing caught that for
+five iterations. Reporting a fix is not making one.

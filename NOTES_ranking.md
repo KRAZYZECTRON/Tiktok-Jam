@@ -157,14 +157,13 @@ there. The fallback means we lose nothing when it is absent — we just quietly
 score 0.1722 instead of 0.1914.
 
 So stage B is a demo/writeup asset, not a scoring strategy, and
-**`main`'s real number is 0.1722**. Full reasoning in `SCOREBOARD.md`.
+**`main`'s real number was 0.1722 at the time of this entry** (it is 0.953064 now).
+Full reasoning in `SCOREBOARD.md`.
 
 Lesson worth generalising for the team: read the submission constraints *before*
 choosing an architecture, not after. The same question applies to Seat 2's
 `sentence-transformers` leg — local weights are more defensible than an HTTP
 service, but they still have to be bundled and CPU-fast.
-
----
 
 ---
 
@@ -199,21 +198,17 @@ on. Keeping the code is still right — it is an honest negative result and a
 better writeup than a claim we never tested. **This is the third time on this
 module that a measured check reversed something that sounded obviously good.**
 
-## Open questions / next
+## Open questions as of 28 Aug — all four since resolved
 
-- **Confirm the scoring environment before anyone builds further on a model.**
-  Ask the organizer (or the Fri webinar) whether final scoring runs offline and
-  CPU-only. The answer decides whether stage B and Seat 2's embeddings are worth
-  anything at all, and it is one question.
-- Stage A tuning is the cheap, safe headroom: the weights (`WEIGHT_CATEGORY`,
-  the material/colour/budget bonuses) were set by reasoning, not swept. A short
-  grid search over the full 200 is ~30 s a run.
-- `ask_attribute` is still hardcoded `None` in `agent.py`. The simulated shopper
-  only discloses new constraints when asked a specific attribute — until Seat 3
-  ships that, every follow-up turn is filler and the query profile never grows
-  after turn 1. **This is the single biggest lever left on MTTC**, and it is
-  dialog's, not ranking's.
-- Pool ceiling is 0.860 @500. Everything above that needs dense retrieval.
+Kept with outcomes rather than deleted: what was open at the time is part of the
+reasoning, but read on its own this section is now wrong in every line.
+
+| open question, 28 Aug | outcome |
+|---|---|
+| "Confirm whether final scoring runs offline and CPU-only before anyone builds further on a model." | Never answered by the organizer, so **answered by measurement instead**: both optional paths were built, measured and disabled. The LLM stage costs 0.014; the dense route costs 0.027 and 13 minutes of cold encode. The default path is pure stdlib and cannot fail an offline run. |
+| "Stage A weights were set by reasoning, not swept — cheap headroom." | Swept extensively since. Most are now at plateaus, and two (`BONUS_EXACT_PHRASE`, `BONUS_EXACT_CATEGORY`) have been **subsumed by the post-fusion layer and are inert**. See the stability table in `SCOREBOARD.md`. |
+| "`ask_attribute` is still hardcoded `None` — the single biggest lever left on MTTC." | **Implemented.** It was the biggest lever: it took the score from 0.205 to 0.87 in one change. MTTC is now 2.545 and mostly structural — `intent_override` cannot hit before turn 3 by the evaluator's own gate. |
+| "Pool ceiling is 0.860 @500; everything above that needs dense retrieval." | **Both halves wrong.** The ceiling was measured on turn-1 queries only and is retired — Hit@10 is 1.0000, well above 0.860, because each turn issues a different query and draws a different pool. And dense retrieval was measured *harmful* (0.9254 against 0.9531), so it was never what stood between us and that number. |
 
 ---
 
