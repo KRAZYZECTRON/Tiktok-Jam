@@ -147,10 +147,23 @@ turns), Windows 11, Python 3.14.4, single core — no GPU used by the scored pat
 | Completion tokens | **0** |
 | Estimated model cost | **$0.00** |
 
-Peak resident memory is ~735 MB, saturating: 1000 sessions through one Agent add
-about 5 MB in total, since the caches are bounded by the catalog rather than by
-session count. Worth stating because the rules permit grading under a memory
-limit.
+Resident memory, measured with `GetProcessMemoryInfo` (what a cgroup or ulimit
+cap actually sees — `tracemalloc` misses SQLite's C-heap FTS index entirely):
+
+| | RSS |
+|---|---|
+| interpreter start | 16 MB |
+| + the evaluator's own harness — **not ours** | 235 MB |
+| + our agent, fully warmed | 470 MB → **235 MB is ours** |
+| after 200 sessions | 472 MB peak |
+
+Our footprint saturates: 200 further sessions add under 2 MB, because the caches
+are bounded by the catalog rather than by session count.
+
+*(Earlier revisions of this file said ~735 MB. That figure was wrong twice over:
+it came from `tracemalloc` around a block that also built the evaluator's 50k
+product dict, so it charged the harness's memory to us, and it did not reflect
+true RSS. Corrected by measurement.)*
 
 No model is called on the scored path, so token usage and cost are structurally
 zero rather than merely small. Cold start is reported separately from per-turn
@@ -322,6 +335,10 @@ Robustness here was free rather than profitable, which is the honest claim.
   split-half stability check, not a holdout. `tools/stability.py` re-tests every
   shipped choice over 200 random splits; three of them carry the whole margin and
   two are now inert.
+- **Memory is 235 MB for the agent** (472 MB including the evaluator's own
+  harness). Catalog strings are pooled at load — 70% of intent-card slots and
+  40% of field strings are exact duplicates across products, so sharing one
+  instance each is free and saves ~20 MB.
 - **Truncated input is our weakest case** (0.8553). It is explicitly outside the
   spec's allowed assumptions — "inputs are pre-cleaned text strings" — so it is
   measured for honesty rather than defended. A real deployment would need it.

@@ -224,3 +224,46 @@ pass, `evaluator/` and `data/` untouched. Tool-and-docs only; no source changed.
 
 **Result: adopted.** The stale number is corrected and the undocumented
 dependency between the two guards is now written down.
+
+---
+
+## Iteration 5 — the memory figure was wrong, and the footprint shrank
+
+**Chosen because** item 5 was the last substantive engineering item, and the
+rules permit grading under a memory cap. But the cheap diagnostic came first,
+and it killed the premise.
+
+**The documented 735 MB was wrong twice over.** It was taken with `tracemalloc`
+around a block that also built the evaluator's own 50k-product dict — charging
+the harness's memory to us — and `tracemalloc` cannot see SQLite's C-heap FTS
+index at all, so it was not measuring resident memory either.
+
+Measured properly with `GetProcessMemoryInfo` (what a cgroup or ulimit cap sees):
+
+| | RSS |
+|---|---|
+| interpreter start | 16 MB |
+| + evaluator harness (**not ours**) | 235 MB |
+| + our agent warmed | 490 MB -> **255 MB ours** |
+| after 200 sessions | 491 MB peak |
+
+So the true story is better than documented: the agent is 255 MB, not 735, and
+235 MB of the total belongs to a harness the graders run regardless of our
+implementation.
+
+**Then a real reduction.** The catalog is far more repetitive than it looks:
+**70% of intent-card slots and 40% of field strings are exact duplicates** of
+another product's, each held as a separate object. Pooling them at load so each
+distinct string exists once is behaviourally free — equality does not depend on
+identity — and the pool is discarded when loading finishes.
+
+  agent 254.8 -> 235.3 MB (-19.5, -7.7%), total peak 491.5 -> 472.2 MB
+
+**Verified after:** clean 0.953064 / Hit@10 1.0000 / MRR 0.946548 (identical),
+78 tests pass, all 17 documented claims re-verify, medium robustness 0.924029
+unchanged, `evaluator/` and `data/` untouched.
+
+**Result: adopted.** A corrected figure and a free 7.7% reduction. Not pursued
+further: `_Catalog.fields` (92 MB) is the next largest block, but every
+alternative — re-reading from disk, storing offsets — trades memory for
+per-turn latency, and 235 MB is not a number worth paying latency to improve.

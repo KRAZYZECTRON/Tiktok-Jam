@@ -398,14 +398,25 @@ class _Catalog:
     def _load(self) -> None:
         document_frequency: Counter[str] = Counter()
         documents = 0
+        # The catalog is far more repetitive than it looks: 70% of card slots
+        # and 40% of field strings are exact duplicates of another product's,
+        # each otherwise held as a separate object. Sharing one instance per
+        # distinct string is behaviourally free -- equality does not depend on
+        # identity -- and the pool is discarded once loading finishes.
+        pool: dict[str, str] = {}
         with Path(self.path).open(encoding="utf-8") as handle:
             for line in handle:
                 product = json.loads(line)
                 parent_asin = str(product["parent_asin"])
                 self.fields[parent_asin] = {
-                    name: _text(product.get(name)) for name in FIELD_WEIGHTS
+                    name: pool.setdefault(text, text)
+                    for name, text in (
+                        (field, _text(product.get(field))) for field in FIELD_WEIGHTS
+                    )
                 }
-                self.card[parent_asin] = card_slots(product)
+                self.card[parent_asin] = tuple(
+                    pool.setdefault(slot, slot) for slot in card_slots(product)
+                )
                 raw_rating = product.get("average_rating")
                 if raw_rating not in (None, ""):
                     try:

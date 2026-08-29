@@ -429,7 +429,7 @@ every text listing — only `cat -A` showed it.
 
 | | result |
 |---|---|
-| 1000 sessions through one Agent | memory saturates at ~735 MB, +1 MB per 200 sessions; 7.5 min |
+| 1000 sessions through one Agent | saturates; our agent is 235 MB RSS, 472 MB including the evaluator's own harness; +2 MB per 200 sessions; 7.5 min |
 | `top_k` = 1, 5, 10, 20, 50 | correct, never over-returns |
 | Interleaved sessions | stay independent |
 | Malformed catalog | null fields, wrong types, unicode, FTS metacharacters, duplicate ASINs, 200 KB strings — all survive |
@@ -437,7 +437,15 @@ every text listing — only `cat -A` showed it.
 | Non-string / `None` message | hardened; previously `AttributeError` |
 | `respond()` before `reset()` | hardened; previously `RuntimeError` |
 
-The 735 MB figure is worth knowing: the rules permit grading under memory limits.
+**The 735 MB previously quoted here was wrong twice over** — it came from
+`tracemalloc` around a block that also built the evaluator's 50k-product dict,
+charging the harness's memory to us, and `tracemalloc` cannot see SQLite's
+C-heap FTS index anyway. Measured properly with `GetProcessMemoryInfo`: 235 MB
+for our agent, 472 MB peak including the harness the graders run regardless.
+
+Catalog strings are now pooled at load. 70% of intent-card slots and 40% of
+field strings are exact duplicates across products; sharing one instance per
+distinct string is behaviourally free and saves ~20 MB (255 -> 235 MB).
 
 ## What is left, and why it is mostly not addressable
 
