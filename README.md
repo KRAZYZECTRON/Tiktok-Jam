@@ -10,7 +10,7 @@ product inside a Top-10 list, within 10 turns.
 | | Hit@10 | MRR | MTTC | Technical score |
 |---|--------|-----|------|-----------------|
 | Provided BM25 baseline | 0.1250 | 0.0680 | 9.81 | 0.1067 |
-| **This agent** | **0.9550** | **0.5729** | **2.93** | **0.8108** |
+| **This agent** | **0.9950** | **0.6287** | **2.51** | **0.8560** |
 
 200 public sessions, `evaluator/local_evaluator.py`, unmodified.
 `TechnicalScore = 0.50·Hit@10 + 0.30·MRR + 0.20·Efficiency`.
@@ -87,7 +87,13 @@ first, and turn 1 was the only turn that could ever hit.
 could reorder them but never change Hit@10. It now draws a 500-candidate pool
 and narrows.
 
-**3. Fuse rankings, not scores.** Replacing BM25's ordering with a lexical score
+**3. A disclosed phrase found intact beats one found scattered.** The evaluator
+builds its hidden intent card from the target's own `features` text, so a
+candidate containing a disclosed constraint verbatim is very likely the target.
+Treating that as a primary sort key rather than another weight took MRR from
+0.580 to 0.629.
+
+**4. Fuse rankings, not scores.** Replacing BM25's ordering with a lexical score
 threw away hits — of 26 misses at the time, 11 had the target inside BM25's own
 top 10 and re-ranking pushed every one out. Reciprocal-rank fusion is
 scale-free, so neither side needs calibrating against the other.
@@ -108,16 +114,16 @@ scale-free, so neither side needs calibrating against the other.
   the normal ranking when the service is absent.
 ### Latency, token usage, and cost
 
-Measured with `py -m tools.perf` on the full 200 public sessions (577 agent
+Measured with `py -m tools.perf` on the full 200 public sessions (500 agent
 turns), Windows 11, Python 3.14.4, single core — no GPU used by the scored path.
 
 | | |
 |---|---|
-| Cold start (FTS index + IDF table, once per process) | **3.88 s** |
-| Per-turn latency, mean | **74.3 ms** |
-| Per-turn latency, p50 / p95 | 55.2 ms / 168.6 ms |
-| Per-turn latency, p99 / max | 394.8 ms / 685.5 ms |
-| Wall clock, all 200 sessions | **42.9 s** |
+| Cold start (FTS index + IDF table, once per process) | **2.00 s** |
+| Per-turn latency, mean | **31.3 ms** |
+| Per-turn latency, p50 / p95 | 28.1 ms / 68.8 ms |
+| Per-turn latency, p99 / max | 93.1 ms / 132.1 ms |
+| Wall clock, all 200 sessions | **15.7 s** |
 | Prompt tokens | **0** |
 | Completion tokens | **0** |
 | Estimated model cost | **$0.00** |

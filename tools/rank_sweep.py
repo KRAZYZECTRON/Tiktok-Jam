@@ -28,6 +28,12 @@ WEIGHTS = {
     "BONUS_COLOR": "TJ_B_COLOR",
     "BONUS_BUDGET": "TJ_B_BUDGET",
     "WEIGHT_PRIOR": "TJ_W_PRIOR",
+    # RRF is what actually orders the head now, so its parameters matter more
+    # to MRR than any of the term weights above.
+    "BONUS_EXACT_PHRASE": "TJ_B_EXACT",
+    "RRF_K": "TJ_RRF_K",
+    "WEIGHT_RRF_RETRIEVAL": "TJ_W_RRF_RETRIEVAL",
+    "WEIGHT_RRF_STAGE_A": "TJ_W_RRF_STAGE_A",
 }
 
 GRIDS: dict[str, dict[str, list[float]]] = {
@@ -35,6 +41,13 @@ GRIDS: dict[str, dict[str, list[float]]] = {
     "bonuses": {"BONUS_MATERIAL": [0.0, 1.5, 3.0], "BONUS_COLOR": [0.0, 1.5, 3.0]},
     "constraint": {"WEIGHT_CONSTRAINT": [0.25, 0.5, 1.0, 1.5]},
     "category": {"WEIGHT_CATEGORY": [1.0, 2.0, 3.0, 4.0]},
+    # Low K makes 1/(K+rank) steep at the head -- the shape MRR rewards.
+    "exact": {"BONUS_EXACT_PHRASE": [0.0, 4.0, 8.0, 12.0, 20.0, 35.0, 60.0]},
+    "rrfk": {"RRF_K": [2.0, 5.0, 10.0, 20.0, 40.0, 60.0]},
+    "rrfmix": {
+        "WEIGHT_RRF_RETRIEVAL": [0.25, 0.5, 1.0],
+        "WEIGHT_RRF_STAGE_A": [0.5, 1.0, 2.0],
+    },
 }
 
 

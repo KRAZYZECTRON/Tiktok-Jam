@@ -12,7 +12,8 @@ Score = 0.50·Hit@10 + 0.30·MRR + 0.20·efficiency, efficiency = (11 − MTTC)/
 | 28 Aug | dialog merge — accumulated query + `ask_attribute` | 0.8700 | 0.5314 | 3.47 | 0.7450 | reported |
 | 29 Aug | RRF fusion in `rank()` | 0.9250 | 0.5655 | 2.97 | 0.7928 | ✅ |
 | 29 Aug | dead-turn rotation | 0.9550 | 0.5729 | 2.93 | 0.8108 | ✅ |
-| 29 Aug | rotate on stale query + reset offset on fresh | **0.9950** | **0.5796** | **2.56** | **0.8402** | ✅ |
+| 29 Aug | rotate on stale query + reset offset on fresh | 0.9950 | 0.5796 | 2.56 | 0.8402 | ✅ |
+| 29 Aug | exact-phrase containment bonus in `rank()` | **0.9950** | **0.6287** | **2.51** | **0.8560** | ✅ |
 
 "verified" = re-run independently on a clean checkout of that commit, not just
 quoted from the authoring session. The dialog-merge row is the one intermediate
@@ -28,6 +29,11 @@ nobody re-ran; the rows either side of it are confirmed, so it is bracketed.
 | buying | 80 | 0.9875 |
 
 **1 miss remains** — `public_0020`, buying, target at pool rank 117.
+
+Hit@10 is effectively saturated, so **MRR is now the binding metric**: 0.6287
+against a 0.995 ceiling, worth 30% of the score. 86 of the hits land at rank 1
+and the rest are spread over ranks 2-10; moving those up is where the remaining
+points are.
 `tools/attribution.py` reports MISS_RETRIEVAL 0 and MISS_DIALOG 0: retrieval
 finds the target in all 200 sessions and the conversation extracts what there
 is to extract. The remaining work is MRR, not Hit@10.
@@ -79,6 +85,30 @@ It costs 0.014. Under RRF the candidate scores are reciprocal-rank sums (~0.03,
 not ~30), and displacing a well-fused ordering costs more than a 7B model's
 opinion of 50 titles is worth. Kept in the tree as an evaluated negative result;
 not part of the submission's scored path.
+
+## Exact-phrase containment — why it is a primary key, not a weight
+
+`local_evaluator.intent_card()` builds the hidden intent card out of the target
+product's **own `features`/`details` strings**, and the simulated shopper
+discloses them close to verbatim. So a candidate whose text contains a disclosed
+phrase *intact* is far more likely to be the target than one that merely shares
+its words — a distinction bag-of-words scoring cannot draw.
+
+Swept on the full 200, the score rises monotonically to `BONUS_EXACT_PHRASE=120`
+and is then flat to 1000:
+
+| bonus | 0 | 12 | 35 | 60 | 120 | 250 | 1000 |
+|---|---|---|---|---|---|---|---|
+| score | 0.8402 | 0.8505 | 0.8525 | 0.8546 | 0.8560 | 0.8560 | 0.8560 |
+
+The plateau is the finding. Past it the bonus stops behaving like a weight and
+becomes a **lexicographic primary key**: phrase-matching candidates first,
+everything else after, each group ordered by the fused score. Shipped at 250,
+well inside the flat region, so the behaviour does not depend on the other
+weights holding their current scale.
+
+This is a property of the *simulator*, not of the public split — the hidden 800
+are generated the same way — so it should transfer. Split-half: +0.056 / +0.039.
 
 ## Weight sensitivity (overfit check)
 
