@@ -159,7 +159,7 @@ path. It cannot fail an offline run.
 | Requirement | Where it lives | Status |
 |---|---|---|
 | **I. Dual-track Buying/Browsing routing** | `retrieval.py::_classify_intent`, `_query_text` | Per-turn intent classification selects narrower limits and BM25-heavy weighting (0.7/0.3) for Buying, wider limits and dense-heavy weighting (0.45/0.55) for Browsing |
-| **I. Multi-route retrieval: keyword + category + vector** | `retrieval.py`, `ranking.py` | Keyword (SQLite FTS5 BM25), category (verbatim category containment, in stage A *and* post-fusion), vector (`sentence-transformers` MiniLM, fused by reciprocal rank + cosine). **Vector leg is optional** — see the note below |
+| **I. Multi-route retrieval: keyword + category + vector** | `retrieval.py`, `ranking.py` | Keyword (SQLite FTS5 BM25), category (verbatim containment, in stage A *and* post-fusion), vector (`sentence-transformers` MiniLM, fused by reciprocal rank + cosine). **Vector leg is opt-in (`TJ_DENSE=1`)** — measured, see below |
 | **I. LLM semantic ranking** | `llm_rerank.py` | Implemented against a local Ollama model. **Off by default, on measurement** — see below |
 | **II. Dynamic state machine: accumulation + intent override** | `dialog.py::update_state` | Slots accumulate across turns with collision-safe keys; an override erases only the opening preference and keeps constraints disclosed after it |
 | **II. Proactive guidance / cutoff on over-generality** | `agent.py`, `ranking.py::rank` | `rank()` reports how many pooled candidates remain consistent with everything disclosed. While that set is large the agent **withholds the list and returns a clarification question instead** — a literal retrieval cutoff under candidate-pool overload |
@@ -169,11 +169,31 @@ path. It cannot fail an offline run.
 
 ### Two deliberate choices worth stating plainly
 
-**The vector leg and the LLM ranker are both optional, and that is the design.**
+**The vector leg is implemented, measured, and off by default.** We built it,
+ran it, and it loses:
+
+| | Hit@10 | MRR | MTTC | score | wall clock |
+|---|---|---|---|---|---|
+| BM25 routes only *(shipped)* | **1.0000** | 0.9438 | 2.55 | **0.9522** | ~30 s |
+| with dense fused in | 0.9700 | 0.9235 | 2.83 | 0.9254 | ~112 s |
+
+Dense retrieval costs 0.027 and gives up a maxed Hit@10, for a specific and
+checkable reason: the simulated shopper's constraints are **verbatim strings
+lifted from the target product's own `features` field**, so there is no
+paraphrase gap for embeddings to close — and the semantic neighbours they
+surface displace exact matches. Cold start if enabled is 21.8 s to load the
+model plus **774.6 s to embed 50k products on CPU** (cached to `.npy` after,
+but a fresh grading environment has no cache).
+
+It is gated behind `TJ_DENSE=1` rather than "on if the library imports",
+deliberately: otherwise a grading machine that happens to have
+`sentence-transformers` installed would silently score 0.9254 instead of
+0.9522. **The environment must not be able to change our answer.**
+
 `docs/submission_rules.md` permits official scoring to run with network access
-disabled, CPU-only, under a timeout. So neither may be load-bearing. Both
-degrade silently: with `numpy`, `torch` and `sentence-transformers` *all* absent
-the agent still scores **0.952231**, verified by simulating their absence.
+disabled, CPU-only, under a timeout, so nothing may be load-bearing. Verified by
+simulating the absence of `numpy`, `torch` and `sentence-transformers`
+*together*: the agent still scores **0.952231**.
 
 **The LLM ranking stage ships disabled because we measured it.** Blended into
 the ranking it was worth +0.019 early on; re-measured after rank fusion landed

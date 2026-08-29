@@ -12,6 +12,16 @@
 #
 #   pytest        # to run tests/ (3 tests, all pass)
 #
+# Optional, opt-in only -- the dense retrieval route, off unless TJ_DENSE=1:
+#
+#   sentence-transformers   # pulls in torch (~2.5 GB) and numpy
+#
+# Not installed by default and not needed to reproduce the reported score. It is
+# implemented for the multi-route retrieval pillar and measured: enabling it
+# scores 0.9254 against 0.9522 without, and costs ~13 minutes of CPU to embed
+# the catalog on first run. numpy is imported defensively so its absence
+# degrades to BM25 rather than failing at import.
+#
 # Optional, demo only -- starter/llm_rerank.py, disabled unless RANK_USE_LLM=1:
 #
 #   (no Python package)  It talks to a local Ollama over plain HTTP using
