@@ -206,9 +206,23 @@ a rewrite. It is Seat 1's file and Seat 1's call; flagged, not touched.
 ## What I'd try next (dialog)
 
 Dialog itself is close to saturated — every scenario now hits about as early as
-its structure allows (buying mean turn 1.93, browsing 2.22, override 3.66
-against a hard floor of 3.5, since hits before the override turn are not
-counted). The remaining ideas are small:
+its structure allows. Figures as measured when this was written, and again
+after `MIN_DISCLOSED` and `ANSWER_IF_CONSISTENT` were later re-tuned:
+
+| scenario | MTTC when written | MTTC now |
+|---|---|---|
+| buying | 1.93 | 2.05 |
+| browsing | 2.22 | 2.56 |
+| intent_override | 3.66 | 3.63 |
+| boundary | — | 3.10 |
+
+The rise in buying and browsing is not a regression: it is the hold-back
+deliberately trading turns for rank, which took MRR from 0.66 to 0.94. The
+override floor of **3.5** is unchanged and structural — the override lands on
+turn 3 or 4 with equal probability and hits before it are not counted, so no
+dialog change can beat it. Hit@10 is 1.0000 in every scenario.
+
+The remaining ideas are small:
 
 - **Boilerplate slots dilute the query.** Constraints lifted from `details` are
   often near-universal ("Imported", "Machine wash cold"). They eat into

@@ -462,3 +462,50 @@ only; no executable change.
 **Result: adopted.** The lesson worth keeping is the first one: iteration 4
 claimed a fix in three files and delivered it in two, and nothing caught that for
 five iterations. Reporting a fix is not making one.
+
+---
+
+## Iteration 10 — the last two unaudited documents
+
+**Chosen because** iteration 9 found four wrong lines in `NOTES_ranking.md`, and
+these two had never been checked. Both turned out to mislead in the same way:
+not by stating falsehoods, but by **stopping before the story ended**.
+
+**`NOTES_retrieval.md` ends on 2026-08-27** with "First measured result: Hit@10
+`0.22`" and no mention that the branch was later merged, that the dense leg was
+run for the first time and *lost*, or that it is now behind `TJ_DENSE=1`. Read
+on its own — which is how a judge reads a per-seat notes file — it implies dense
+retrieval is live and carrying that 0.22. Appended an integration entry with the
+measurement (0.9254 with dense against 0.9531 without, 774.6 s cold encode), the
+mechanism (constraints are verbatim strings from the target's own `features`, so
+there is no paraphrase gap for embeddings to close), and the two robustness
+fixes the merged code needed.
+
+I also made a point of writing that this does **not** make the branch wasted
+work: the intent routing ships and is one of two named Pillar I requirements,
+and "we built it, measured it, rejected it on evidence" is a stronger line than
+carrying an untested dense leg. A notes file that reads as a rebuke of a
+teammate's work would be both unfair and inaccurate.
+
+**`NOTES_dialog.md` quoted per-scenario MTTC from before the hold-back was
+re-tuned:**
+
+| scenario | as written | now |
+|---|---|---|
+| buying | 1.93 | 2.05 |
+| browsing | 2.22 | 2.56 |
+| intent_override | 3.66 | 3.63 |
+
+Worth stating carefully rather than just correcting: **the rise is not a
+regression.** It is the hold-back deliberately trading turns for rank, which
+took MRR 0.66 → 0.94. Someone reading only the drift could reasonably conclude
+dialog had got worse. Both columns now sit side by side with that explanation,
+and the override floor of 3.5 is marked as structural — it comes from the
+override landing on turn 3 or 4 with equal probability, so no dialog change can
+beat it.
+
+**Verified after:** 80 tests pass, 19 documented claims re-verify, clean
+0.953064 / Hit@10 1.0000, `evaluator/` and `data/` untouched. Docs only.
+
+**Result: adopted.** With this every document in the repo has now been audited
+against a fresh run at least once tonight.
