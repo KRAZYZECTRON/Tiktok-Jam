@@ -154,6 +154,34 @@ latency because they differ by ~50x and a timeout will apply to one or the other
 **Network access required: none.** The agent never opens a socket on the scored
 path. It cannot fail an offline run.
 
+## How this addresses the four pillars
+
+| Requirement | Where it lives | Status |
+|---|---|---|
+| **I. Dual-track Buying/Browsing routing** | `retrieval.py::_classify_intent`, `_query_text` | Per-turn intent classification selects narrower limits and BM25-heavy weighting (0.7/0.3) for Buying, wider limits and dense-heavy weighting (0.45/0.55) for Browsing |
+| **I. Multi-route retrieval: keyword + category + vector** | `retrieval.py`, `ranking.py` | Keyword (SQLite FTS5 BM25), category (verbatim category containment, in stage A *and* post-fusion), vector (`sentence-transformers` MiniLM, fused by reciprocal rank + cosine). **Vector leg is optional** — see the note below |
+| **I. LLM semantic ranking** | `llm_rerank.py` | Implemented against a local Ollama model. **Off by default, on measurement** — see below |
+| **II. Dynamic state machine: accumulation + intent override** | `dialog.py::update_state` | Slots accumulate across turns with collision-safe keys; an override erases only the opening preference and keeps constraints disclosed after it |
+| **II. Proactive guidance / cutoff on over-generality** | `agent.py`, `ranking.py::rank` | `rank()` reports how many pooled candidates remain consistent with everything disclosed. While that set is large the agent **withholds the list and returns a clarification question instead** — a literal retrieval cutoff under candidate-pool overload |
+| **III. Personalized context distillation** | `dialog.py`, `state.py` | Each turn distils the shopper's reply into typed slots and a composed retrieval query; the aggregate profile's `preference_tags` contribute a tie-break weight |
+| **III. Adaptive orchestration / runtime re-orchestration** | `agent.py` | The agent switches strategy at runtime on measured state: *ask-only* while the candidate set is broad, *answer* once it narrows (`ANSWER_IF_CONSISTENT`), *page down the ranked list* once the shopper stops disclosing. Same pipeline, three behaviours, chosen per turn |
+| **IV. Coverage / Precision / Efficiency** | `evaluator/` | Hit@10 1.0000 · MRR 0.9438 · MTTC 2.55 |
+
+### Two deliberate choices worth stating plainly
+
+**The vector leg and the LLM ranker are both optional, and that is the design.**
+`docs/submission_rules.md` permits official scoring to run with network access
+disabled, CPU-only, under a timeout. So neither may be load-bearing. Both
+degrade silently: with `numpy`, `torch` and `sentence-transformers` *all* absent
+the agent still scores **0.952231**, verified by simulating their absence.
+
+**The LLM ranking stage ships disabled because we measured it.** Blended into
+the ranking it was worth +0.019 early on; re-measured after rank fusion landed
+it costs **−0.014**, because it displaces a better-ordered list. The code, the
+prompt design and both measurements are in `llm_rerank.py` and
+`NOTES_ranking.md`. We would rather ship the configuration we can defend with
+numbers than the one that sounds more impressive.
+
 ## Repository map
 
 | path | what |
