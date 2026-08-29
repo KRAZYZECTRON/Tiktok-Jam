@@ -94,8 +94,29 @@ def rank(candidates: list[Candidate], state: DialogState) -> list[Candidate]:
   it:
   the README lists asking a clarification question as a standalone option,
   separate from returning a ranked list.
-  The bound matters more than the threshold — see the cliff documented in
-  agent.py (hold≤3/min=5 scores 0.24). **Never remove HOLD_UNTIL_TURN.**
+  The bound matters more than the threshold, and the failure is total. Measured
+  now, with the shipped `ANSWER_IF_CONSISTENT=4`:
+
+  | config | Hit@10 | score |
+  |---|---|---|
+  | `hold<=2 min=3` (shipped) | 1.0000 | 0.9531 |
+  | `hold<=3 min=5` | 0.8650 | 0.8279 |
+  | `hold<=10 min=9` | 0.7900 | 0.7617 |
+
+  and with early-answering disabled:
+
+  | config | Hit@10 | score |
+  |---|---|---|
+  | `hold<=3 min=5` | 0.2400 | 0.2215 |
+  | `hold<=10 min=9` | **0.0000** | **0.000000** |
+
+  **Two independent mechanisms defend this failure, and only one was written
+  down.** `HOLD_UNTIL_TURN` bounds the wait; `ANSWER_IF_CONSISTENT` rescues a
+  session whose candidate set has already collapsed even when the turn budget
+  says keep waiting. Remove either and a mis-set threshold degrades; remove both
+  and it scores **zero**. `ANSWER_IF_CONSISTENT` looks like a +0.0037 nicety in
+  the scoreboard — it is also a safety net. **Do not delete it as dead weight.**
+  **Never remove HOLD_UNTIL_TURN.**
 - **MIN_DISCLOSED and ANSWER_IF_CONSISTENT are trades against ranking quality,
   not constants.** Improving the ranker moved both optima: the threshold went
   4 → 3, and early-answering went from rejected to adopted. Re-check both

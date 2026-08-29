@@ -176,3 +176,51 @@ documented as a real deployment gap rather than defended.
 and `data/` untouched. Tool-and-docs only.
 
 **Result: adopted** (the instrumentation and the corrected figures).
+
+---
+
+## Iteration 4 — re-verify every documented number, and find a stale safety claim
+
+**Chosen because** the headline claim of this submission is not the score, it is
+that everything is measured. One wrong number undermines that whole claim, and
+stale figures have already slipped through five times. Three iterations of
+changes since many figures were taken made drift likely.
+
+**Added `tools/verify_claims.py`** — re-runs 17 load-bearing documented numbers
+and exits non-zero on any mismatch, so it can gate a commit before submission.
+Deliberately excludes anything needing torch or a running Ollama: a verification
+tool that cannot run on a clean checkout is not a verification tool.
+
+**16 of 17 held. The one that failed was a safety claim**, which is the worst
+kind to have wrong.
+
+`CLAUDE.md`, `SCOREBOARD.md` and `agent.py` all cited "hold<=3/min=5 scores
+0.24" as the reason never to remove `HOLD_UNTIL_TURN`. Re-measured: **0.8279**.
+
+The figure was taken before `ANSWER_IF_CONSISTENT` existed. Characterising the
+current behaviour properly:
+
+| config | early-answer ON | early-answer OFF |
+|---|---|---|
+| `hold<=2 min=3` (shipped) | 1.0000 / 0.9531 | 1.0000 / 0.9494 |
+| `hold<=3 min=5` | 0.8650 / 0.8279 | 0.2400 / 0.2215 |
+| `hold<=10 min=9` | 0.7900 / 0.7617 | 0.0000 / **0.000000** |
+
+**The real finding: two independent mechanisms defend this failure and only one
+was documented.** `HOLD_UNTIL_TURN` bounds the wait; `ANSWER_IF_CONSISTENT`
+rescues a session whose candidate set has already collapsed even when the turn
+budget says keep waiting. Remove either and a mis-set threshold degrades; remove
+**both** and the agent scores zero.
+
+That matters because `tools/stability.py` reports early-answering as worth
++0.0037 — it reads like a nicety. Someone trimming "dead weight" from the
+config could delete the guard that stops a mis-set hold being catastrophic.
+Now stated in `CLAUDE.md`, `SCOREBOARD.md`, and enforced by two checks in
+`verify_claims.py` including one asserting the unbounded case scores exactly
+zero.
+
+**Verified after:** all 17 claims pass, clean 0.953064 / Hit@10 1.0000, 78 tests
+pass, `evaluator/` and `data/` untouched. Tool-and-docs only; no source changed.
+
+**Result: adopted.** The stale number is corrected and the undocumented
+dependency between the two guards is now written down.

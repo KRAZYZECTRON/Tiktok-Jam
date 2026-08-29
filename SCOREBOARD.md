@@ -197,11 +197,24 @@ holds back, so the transcript reads as a conversation.
 
 **The bound is what makes it safe, and it is a cliff:**
 
-| | Hit@10 | score |
+| config | Hit@10 | score |
 |---|---|---|
-| hold ≤ turn 2, min 4 | **1.0000** | **0.9122** |
-| hold ≤ turn 3, min 5 | 0.2750 | 0.2438 |
-| hold ≤ turn 4, min 5 | 0.0650 | 0.0558 |
+| `hold≤2 min=3` (shipped) | **1.0000** | **0.9531** |
+| `hold≤3 min=5` | 0.8650 | 0.8279 |
+| `hold≤10 min=9` | 0.7900 | 0.7617 |
+| `hold≤3 min=5`, early-answering off | 0.2400 | 0.2215 |
+| `hold≤10 min=9`, early-answering off | **0.0000** | **0.000000** |
+
+*(Re-measured. Earlier revisions quoted 0.2438 for `hold≤3/min=5`, taken before
+`ANSWER_IF_CONSISTENT` existed — that figure is now the early-answering-off row.
+`tools/verify_claims.py` caught the staleness.)*
+
+**Two independent mechanisms defend this failure and only one was documented.**
+`HOLD_UNTIL_TURN` bounds the wait; `ANSWER_IF_CONSISTENT` rescues a session whose
+candidate set has already collapsed even when the turn budget says keep waiting.
+Remove either and a mis-set threshold degrades; remove **both** and it scores
+zero. Early-answering reads as a +0.0037 nicety in the stability table — it is
+also a safety net, and deleting it as dead weight would be a mistake.
 
 Most sessions never disclose more than four constraints, so a threshold that
 cannot be met plus a late bound means never answering. At `HOLD_UNTIL_TURN=2`
