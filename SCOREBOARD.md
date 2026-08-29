@@ -28,25 +28,26 @@ Score = 0.50·Hit@10 + 0.30·MRR + 0.20·efficiency, efficiency = (11 − MTTC)/
 quoted from the authoring session. The dialog-merge row is the one intermediate
 nobody re-ran; the rows either side of it are confirmed, so it is bracketed.
 
-## Per-scenario, current `main` (`e5b3a2f`)
+## Per-scenario, current `main`
 
 | scenario | n | Hit@10 | MRR | MTTC |
 |----------|---|--------|-----|------|
-| boundary | 10 | 1.0000 | 0.7283 | 2.90 |
-| browsing | 80 | 1.0000 | 0.6598 | 2.19 |
-| buying | 80 | 1.0000 | 0.6294 | 1.91 |
-| intent_override | 30 | 1.0000 | 0.7231 | 3.77 |
+| boundary | 10 | 1.0000 | 1.0000 | 3.10 |
+| browsing | 80 | 1.0000 | 0.9646 | 2.56 |
+| buying | 80 | 1.0000 | 0.9358 | 2.05 |
+| intent_override | 30 | 1.0000 | 0.8909 | 3.63 |
 
 **Zero misses.** All 200 public sessions hit, in every scenario.
 
-**Hit@10 is maxed, so only MRR and MTTC can still move.** MRR is 0.6406 against
-a ceiling of 1.0 and carries 30% weight; efficiency is 0.8535 and carries 20%.
-Roughly 100 of the 200 hits land at rank 1 and the rest spread over ranks 2-10,
-so about +0.11 of score is theoretically still on the table — all of it in
-telling near-identical clothing items apart.
-`tools/attribution.py` reports MISS_RETRIEVAL 0 and MISS_DIALOG 0: retrieval
-finds the target in all 200 sessions and the conversation extracts what there
-is to extract. The remaining work is MRR, not Hit@10.
+Hit@10 is maxed, so only MRR (0.9438, 30% weight) and efficiency
+(0.8455, 20% weight) can still move. 180 of the 200 hits land at
+rank 1; the remaining 20 cost 0.0169 of score and are overwhelmingly cases where
+every rival is equally consistent with everything the shopper disclosed.
+
+Much of the MTTC gap is structural rather than addressable: all 30
+`intent_override` sessions are barred from hitting before turn 3 by the
+evaluator's override gate, and all 10 `boundary` sessions lose a turn to the
+one-shot deflection.
 
 ## Retired: the recall@500 "ceiling"
 
@@ -71,11 +72,14 @@ switch and its value is measured:
 
 | | Hit@10 | MRR | MTTC | score |
 |---|--------|-----|------|-------|
-| rotation on (default) | 0.9950 | 0.5796 | 2.56 | 0.8402 |
+| rotation on | 0.9950 | 0.5796 | 2.56 | 0.8402 |
 | `TJ_ROTATE=off` | 0.9250 | 0.5655 | 2.97 | 0.7928 |
 
-**Worth +0.047 — about 6% of the score**, up from +0.018 before the stale-query
-gate. Split-half: +0.033 / +0.061, i.e. it holds on both halves, which is what
+*(Measured at the 0.8402 stage; the kill switch still works, but the figures
+below are historical — later changes moved the baseline it was measured against.)*
+
+**Worth +0.047 at the time — about 6% of the score**, up from +0.018 before the
+stale-query gate. Split-half: +0.033 / +0.061, i.e. it holds on both halves, which is what
 you want from a structural change as opposed to a tuned weight. Everything else is independent of it.
 Note the evaluator records rank *within the ten returned*, so a target at true
 rank 23 shown first on page 3 records as rank 1; that inflates MRR as well as
