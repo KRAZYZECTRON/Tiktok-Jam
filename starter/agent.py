@@ -52,6 +52,19 @@ CONFIDENCE_MAX = int(os.environ.get("TJ_CONFIDENCE", "0"))
 # hold<=2 that failure mode is unreachable -- turn 3 always answers.
 MIN_DISCLOSED = int(os.environ.get("TJ_MIN_DISCLOSED", "4"))
 HOLD_UNTIL_TURN = int(os.environ.get("TJ_HOLD_UNTIL", "2"))
+# ...but answer early anyway when the conversation has *already* identified the
+# product. The hold exists because a rank drawn from a large consistent set is
+# a bad rank; if the set is down to one or two candidates there is nothing left
+# to wait for, and waiting only costs a turn of MTTC. rank() reports the size as
+# state.card_consistent. 0 disables the override (always hold).
+#
+# TESTED AND REJECTED, inert at 0. On the full 200 it looks like a gain
+# (+0.0031, MTTC 3.195 -> 2.880) but the split-half flips sign:
+#   half A -0.0026    half B +0.0087
+# The whole full-set gain comes from one half. Sometimes the single "consistent"
+# candidate is the wrong product, and answering on it locks in a bad rank -- how
+# often that happens is a property of the particular sessions, not of the rule.
+ANSWER_IF_CONSISTENT = int(os.environ.get("TJ_ANSWER_IF", "0"))
 
 
 # Customer-facing phrasing. The spec (README, "On every turn the agent may")
@@ -122,11 +135,16 @@ class Agent:
         window = ranked[offset:offset + top_k] or ranked[:top_k]
         # Still guessing: ask, but do not spend the session's one scored answer
         # on a list we expect to rank the target low in.
+        confident = (
+            ANSWER_IF_CONSISTENT
+            and 0 < getattr(state, "card_consistent", 0) <= ANSWER_IF_CONSISTENT
+        )
         holding = (
             MIN_DISCLOSED
             and turn <= HOLD_UNTIL_TURN
             and getattr(state, "disclosed_count", 0) < MIN_DISCLOSED
             and getattr(state, "ask_attribute", None) is not None
+            and not confident
         )
         if holding or (
             CONFIDENCE_MAX

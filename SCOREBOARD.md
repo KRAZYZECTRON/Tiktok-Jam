@@ -196,6 +196,25 @@ Most sessions never disclose more than four constraints, so a threshold that
 cannot be met plus a late bound means never answering. At `HOLD_UNTIL_TURN=2`
 that is unreachable — turn 3 always answers. **Never remove the bound.**
 
+## Why 0.9122 is close to the information ceiling
+
+Not a hunch — the two measurements meet:
+
+- The disclosed constraints **uniquely identify the target in 147 of 200** sessions.
+- The shipped agent puts the target **at rank 1 in 157 of 200**.
+
+We are already ranking first *more often than the evidence uniquely determines*,
+by leaning on category, phrase and BM25 signal where the card is ambiguous. The
+43 sessions that remain are ones where what the shopper said genuinely does not
+separate the target from its neighbours — the men's-vs-boys' cotton undershirt
+case. No re-weighting resolves those, and the priors that could (popularity,
+profile affinity) were tested and lost.
+
+Remaining loss decomposes as **0.0439 from MRR** (43 sessions off rank 1) and
+**0.0041 from MTTC** (32 sessions hitting after turn 3). With the turn-1-2
+hold-back the MTTC floor is 3.0, so the reachable maximum is ≈0.96, and the last
+0.044 of it sits behind genuinely ambiguous evidence.
+
 ## Tested and rejected
 
 Recorded so nobody spends hours re-deriving them. All remain exposed as
@@ -204,6 +223,8 @@ tunables at inert defaults, so each is one env var away from reproducing.
 | idea | result | why it failed |
 |------|--------|---------------|
 | **Unbounded confidence gating** | 0.8712 → 0.8668 at best | Hold back while the *consistent set* is large. MRR rises (0.661 → 0.773) but Hit@10 collapses to 0.90: a session whose set never shrinks never answers at all. Superseded by the bounded version below, which fixes exactly this. `TJ_CONFIDENCE`, disabled. |
+| **Answer early when already certain** | +0.0031 full, **−0.0026 / +0.0087 split-half** | Skip the hold-back when the consistent set is already down to one. Looks like a clean MTTC win (3.195 → 2.880) until you split it: the sign flips between halves, because whether that single candidate is *actually* the target varies by session. Rejected on the same standard as everything else here. `TJ_ANSWER_IF`, disabled. |
+| **Semicolon-tolerant card matching** | 0.9122 → 0.9096 | Strict equality rejects the true target on 6.7% of scored turns, because one card slot can contain "; " internally and the splitter shatters it. Fixing it made things **worse**, twice — via containment (0.9090) and via substring tolerance (0.9096). The strict filter's failure mode is benign: when it rejects everyone the bonus goes inert and other signals rank. A looser filter instead manufactures false positives. A real bug that is better left unfixed. |
 | **Adaptive probing** | not implementable | The obvious next idea, and it cannot work. `customer_reply` caps disclosure at `[:2]` per reply and `"other"` already returns the first two undisclosed *in card order* — the agent asks `"other"` on turns 1-3 in 200/200 sessions. Disclosure is already at the evaluator's maximum rate; no smarter question extracts faster. Measuring this before building it saved the work. |
 | **Popularity prior** (`log1p(rating_number)`) | 0.8629 → 0.8488 at best non-zero | The target *is* a real purchase, so this sounded well-founded. It drives MTTC down hard (2.47 → 1.91) but knocks Hit@10 off 1.0000 and MRR with it: a prior on "what people buy", competing with evidence about "what this shopper described" rather than complementing it. |
 | **Profile-rating personalization** | 0.8629 → 0.8555 at worst | Matching the catalog's `average_rating` to the profile's `average_prior_rating`. A named innovation direction in the spec, so worth testing, but `average_prior_rating` describes the shopper's rating *habits*, not a preference over quality — no information about which item they bought, and it dilutes evidence that does. |
