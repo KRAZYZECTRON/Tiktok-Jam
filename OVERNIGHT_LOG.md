@@ -267,3 +267,48 @@ unchanged, `evaluator/` and `data/` untouched.
 further: `_Catalog.fields` (92 MB) is the next largest block, but every
 alternative — re-reading from disk, storing offsets — trades memory for
 per-turn latency, and 235 MB is not a number worth paying latency to improve.
+
+---
+
+## Iteration 6 — curated demo transcripts
+
+**Chosen because** it was the last queue item, and because the interesting claim
+about this system is not its score but that its reasoning is inspectable turn by
+turn. A transcript showing the agent refuse to answer, then identify, then have
+a slot erased by an override argues Pillars II and III better than prose.
+
+**Added `tools/demo_transcripts.py`**, which replays all 200 sessions and selects
+by *behaviour exercised* rather than by outcome. Six slots, each naming a
+behaviour, each filled by the clearest real example:
+
+| behaviour | session |
+|---|---|
+| refusing to guess, then identifying | `public_0001` |
+| an intent override erasing a slot | `public_0002` |
+| browsing narrowing from nothing to one candidate | `public_0006` |
+| a boundary deflection handled | `public_0035` |
+| paging deeper when the shopper runs dry | `public_0020` |
+| **a session the agent gets wrong** | `public_0076` |
+
+The last slot is deliberate. A demo reel of only successes invites the question
+"what does it look like when it fails?", and the honest answer is a good one:
+every rival ranked above the target is equally consistent with everything the
+shopper disclosed, so the conversation genuinely does not separate them.
+
+`public_0002` is the strongest single artefact: consistent-product count moves
+203 → 18 → 123 as the override lands, `'feature': 'Buckle closure'` visibly
+disappears from the slots, and the retrieval query is rewritten without it while
+the later-disclosed material constraints survive.
+
+**One weakness noticed and not fixed:** because the probe asks `"other"`, the
+customer-facing question is the generic "Tell me a bit more about what matters
+to you" rather than something specific. It is honest and it is what the agent
+actually says, but a more targeted question would demo better. Recorded rather
+than papered over — changing the probe to improve a transcript would be tuning
+for the demo instead of for the shopper.
+
+**Verified after:** clean 0.953064 / Hit@10 1.0000, 78 tests pass, all 17
+documented claims re-verify, `evaluator/` and `data/` untouched. Tool and
+generated-artefact only; no source changed.
+
+**Result: adopted.**
