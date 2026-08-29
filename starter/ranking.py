@@ -58,7 +58,52 @@ LEAD_RE = re.compile(r"^\s*i'?m looking for\s+", re.I)
 # "Actually, ignore my earlier preference. What I need is: X."
 OVERRIDE_RE = re.compile(r"\bignore my earlier preference\b", re.I)
 # The informative half of a reply: "For that, what matters is: X; Y."
-PAYLOAD_RE = re.compile(r"(?:what matters is|a key requirement is|what i need is)\s*:?\s*(.+)", re.I)
+# The informative half of a reply, extracted in three widening steps.
+#
+# The competition spec warns that "natural-language paraphrasing" may be added
+# by the organizer. Matching only the three carrier phrases this simulator emits
+# made that catastrophic rather than merely degrading: reword "what matters is:"
+# to "what I care about is" and nothing extracts, so no constraint is recorded,
+# the dialog state stays empty, and the pipeline collapses. Measured at -0.476 of
+# score, against -0.028 for casing and punctuation drift alone.
+#
+# Ordered strict-first on purpose. The general rules are strictly additional:
+# on the wording this simulator actually produces, step 1 always matches and the
+# others never run, so robustness costs nothing on the clean set. Generalising
+# step 1 *instead of* layering was tried and cost 0.024 -- a looser pattern
+# mis-splits product copy that happens to contain "is" or a colon.
+PAYLOAD_RE = re.compile(
+    r"(?:what matters is|a key requirement is|what i need is)\s*:?\s*(.+)", re.I
+)
+# 2. Any short lead-in clause ending in "is"/"need" -- covers "what I care about
+#    is", "the thing that matters is", and anything else phrased that way.
+PAYLOAD_GENERAL_RE = re.compile(
+    r"(?:^|[,.;]\s*)[a-z0-9'\s]{0,40}?(?:is|need)\s*:\s*(.+)", re.I
+)
+# 3. Failing both, whatever follows the first colon -- where a stated
+#    requirement almost always sits.
+PAYLOAD_FALLBACK_RE = re.compile(r"^[^:]{0,80}:\s*(.+)")
+
+def _find_payload(text: str, fallback: bool = True):
+    """Constraint clause of a reply, tolerant of how it is phrased.
+
+    Tries the general lead-in rule, then optionally the bare-colon fallback.
+
+    `fallback=False` on the turn-1 opening, deliberately. Turn 1 is
+    "I'm looking for {category}. {constraint}" and the constraint text itself
+    often contains a colon -- product copy like "FAVORITE SLIPPERS: Slip into
+    divine comfort". Splitting on that colon severs the category, which is the
+    single strongest signal in the session, and cost 0.025 of score when the
+    fallback was applied there indiscriminately.
+    """
+    found = PAYLOAD_RE.search(text)
+    if found:
+        return found
+    found = PAYLOAD_GENERAL_RE.search(text)
+    if found:
+        return found
+    return PAYLOAD_FALLBACK_RE.search(text) if fallback else None
+
 
 FIELD_WEIGHTS = {
     "title": 6.0,
@@ -406,7 +451,7 @@ def _strip_noise(message: str) -> str:
 
 def _payload(message: str) -> str:
     """The informative half of a follow-up reply, minus its lead-in."""
-    found = PAYLOAD_RE.search(message)
+    found = _find_payload(message)
     return found.group(1) if found else message
 
 
@@ -426,7 +471,7 @@ def split_dialog(state: DialogState) -> tuple[str, list[str]]:
 
     # Turn 1 is "I'm looking for {category}[. {constraint}]" -- split the halves.
     opening = _strip_noise(messages[0])
-    payload = PAYLOAD_RE.search(opening)
+    payload = _find_payload(opening, fallback=False)
     if payload:
         category_text = LEAD_RE.sub("", opening[: payload.start()])
         opening_constraint = payload.group(1)
