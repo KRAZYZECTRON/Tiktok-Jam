@@ -20,7 +20,8 @@ Score = 0.50·Hit@10 + 0.30·MRR + 0.20·efficiency, efficiency = (11 − MTTC)/
 | 29 Aug | promote card-consistent candidates *after* fusion | 1.0000 | 0.8862 | 3.15 | 0.9230 | ✅ |
 | 29 Aug | promote category match after fusion too | 1.0000 | 0.8924 | 3.14 | 0.9250 | ✅ |
 | 29 Aug | popularity as a post-fusion tie-break | 1.0000 | 0.9520 | 3.13 | 0.9431 | ✅ |
-| 29 Aug | hold-back threshold 4 → 3, re-tuned for the stronger ranker | **1.0000** | **0.9380** | **2.75** | **0.9464** | ✅ |
+| 29 Aug | hold-back threshold 4 → 3, re-tuned for the stronger ranker | 1.0000 | 0.9380 | 2.75 | 0.9464 | ✅ |
+| 29 Aug | answer early when already identified (re-adopted) | **1.0000** | **0.9380** | **2.57** | **0.9501** | ✅ |
 
 "verified" = re-run independently on a clean checkout of that commit, not just
 quoted from the authoring session. The dialog-merge row is the one intermediate
@@ -309,7 +310,7 @@ tunables at inert defaults, so each is one env var away from reproducing.
 | idea | result | why it failed |
 |------|--------|---------------|
 | **Unbounded confidence gating** | 0.8712 → 0.8668 at best | Hold back while the *consistent set* is large. MRR rises (0.661 → 0.773) but Hit@10 collapses to 0.90: a session whose set never shrinks never answers at all. Superseded by the bounded version below, which fixes exactly this. `TJ_CONFIDENCE`, disabled. |
-| **Answer early when already certain** | +0.0031 full, **−0.0026 / +0.0087 split-half** | Skip the hold-back when the consistent set is already down to one. Looks like a clean MTTC win (3.195 → 2.880) until you split it: the sign flips between halves, because whether that single candidate is *actually* the target varies by session. Rejected on the same standard as everything else here. `TJ_ANSWER_IF`, disabled. |
+| ~~**Answer early when already certain**~~ | **later adopted** | Rejected at MRR 0.89 on a split-half sign flip (−0.0026 / +0.0087), then re-tested and adopted at MRR 0.94: +0.0040 / +0.0034 with MRR identical on and off. The idea was never wrong; the ranker was not yet good enough for a small consistent set to mean rank 1. See the coupling note above. |
 | **Semicolon-tolerant card matching** | 0.9122 → 0.9096 | Strict equality rejects the true target on 6.7% of scored turns, because one card slot can contain "; " internally and the splitter shatters it. Fixing it made things **worse**, twice — via containment (0.9090) and via substring tolerance (0.9096). The strict filter's failure mode is benign: when it rejects everyone the bonus goes inert and other signals rank. A looser filter instead manufactures false positives. A real bug that is better left unfixed. |
 | **Adaptive probing** | not implementable | The obvious next idea, and it cannot work. `customer_reply` caps disclosure at `[:2]` per reply and `"other"` already returns the first two undisclosed *in card order* — the agent asks `"other"` on turns 1-3 in 200/200 sessions. Disclosure is already at the evaluator's maximum rate; no smarter question extracts faster. Measuring this before building it saved the work. |
 | **Popularity prior, applied globally** | 0.8629 → 0.8488 at best non-zero | **Superseded — see below. The signal was right, the placement was wrong.** | The target *is* a real purchase, so this sounded well-founded. It drives MTTC down hard (2.47 → 1.91) but knocks Hit@10 off 1.0000 and MRR with it: a prior on "what people buy", competing with evidence about "what this shopper described" rather than complementing it. |

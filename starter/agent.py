@@ -62,13 +62,18 @@ HOLD_UNTIL_TURN = int(os.environ.get("TJ_HOLD_UNTIL", "2"))
 # to wait for, and waiting only costs a turn of MTTC. rank() reports the size as
 # state.card_consistent. 0 disables the override (always hold).
 #
-# TESTED AND REJECTED, inert at 0. On the full 200 it looks like a gain
-# (+0.0031, MTTC 3.195 -> 2.880) but the split-half flips sign:
-#   half A -0.0026    half B +0.0087
-# The whole full-set gain comes from one half. Sometimes the single "consistent"
-# candidate is the wrong product, and answering on it locks in a bad rank -- how
-# often that happens is a property of the particular sessions, not of the rule.
-ANSWER_IF_CONSISTENT = int(os.environ.get("TJ_ANSWER_IF", "0"))
+# Rejected once, then adopted -- and the reversal is the interesting part. When
+# the ranker produced MRR 0.89 this measured +0.0031 on the full 200 but flipped
+# sign across halves (-0.0026 / +0.0087): a small consistent set did not reliably
+# mean the target was first, so answering early sometimes locked in a bad rank.
+#
+# With the ranker at MRR 0.94 it does mean that. Re-tested: +0.0037 full,
+# +0.0040 / +0.0034 across halves, and MRR is *identical* with it on and off --
+# the gain is pure MTTC at zero rank cost. Peak at 4, shallow band from 2 to 8.
+#
+# Same lesson as MIN_DISCLOSED above: this is a trade against ranking quality,
+# so it needs re-testing whenever ranking moves, in both directions.
+ANSWER_IF_CONSISTENT = int(os.environ.get("TJ_ANSWER_IF", "4"))
 
 
 # Customer-facing phrasing. The spec (README, "On every turn the agent may")
