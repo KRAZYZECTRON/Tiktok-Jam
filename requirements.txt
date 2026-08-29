@@ -1,0 +1,21 @@
+# TechJam 2026 Track 4 — runtime dependencies
+#
+# There are none. The scored agent (starter/) uses only the Python standard
+# library: json, re, sqlite3, math, hashlib, pickle, urllib, dataclasses.
+#
+# This is deliberate, not an accident of scope. docs/submission_rules.md says
+# official scoring may run with network access disabled, CPU-only, and under a
+# timeout, and forbids depending on undeclared external services. A pure-stdlib
+# agent cannot fail any of those conditions.
+#
+# Optional, development only -- not needed to run or score the agent:
+#
+#   pytest        # to run tests/ (3 tests, all pass)
+#
+# Optional, demo only -- starter/llm_rerank.py, disabled unless RANK_USE_LLM=1:
+#
+#   (no Python package)  It talks to a local Ollama over plain HTTP using
+#                        urllib from the standard library. Requires Ollama
+#                        running with qwen2.5:7b-instruct. If that service is
+#                        absent the stage falls back to the normal ranking and
+#                        the agent scores exactly as it does without it.

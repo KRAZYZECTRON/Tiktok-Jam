@@ -1,4 +1,150 @@
-# TechJam Conversational E-Commerce Search Challenge
+# Shopping Copilot — TechJam 2026, Track 4
+
+A multi-turn conversational product search agent over a 50,000-product Amazon
+clothing catalog. Given an anonymized preference profile and a vague opening
+message, it asks clarifying questions and surfaces the shopper's hidden target
+product inside a Top-10 list, within 10 turns.
+
+## Result
+
+| | Hit@10 | MRR | MTTC | Technical score |
+|---|--------|-----|------|-----------------|
+| Provided BM25 baseline | 0.1250 | 0.0680 | 9.81 | 0.1067 |
+| **This agent** | **0.9550** | **0.5729** | **2.93** | **0.8108** |
+
+200 public sessions, `evaluator/local_evaluator.py`, unmodified.
+`TechnicalScore = 0.50·Hit@10 + 0.30·MRR + 0.20·Efficiency`.
+
+Per-scenario, and the full change history with every intermediate measurement,
+are in [`SCOREBOARD.md`](SCOREBOARD.md).
+
+## Requirements
+
+- **Python 3.10+** (developed and scored on 3.14.4)
+- **No third-party packages.** The agent is pure standard library — see
+  [`requirements.txt`](requirements.txt) for why that is a deliberate choice.
+
+## Run it
+
+```bash
+# 1. fetch the catalog (a Release asset, not in the repo)
+curl -L -o catalog.jsonl.gz https://github.com/TechJam2026/techjam-conversational-search/releases/latest/download/catalog.jsonl.gz
+curl -L -o SHA256SUMS       https://github.com/TechJam2026/techjam-conversational-search/releases/latest/download/SHA256SUMS
+sha256sum -c SHA256SUMS --ignore-missing
+gzip -dk catalog.jsonl.gz && mkdir -p data && mv catalog.jsonl data/catalog.jsonl
+
+# 2. score the agent
+python -m evaluator.local_evaluator
+```
+
+That single command is the whole reproduction. On Windows use `py` for `python`.
+
+## How it works
+
+```
+                 ┌─────────────────────────────────────────┐
+   turn message  │  update_state()      starter/dialog.py   │
+  ──────────────▶│  · accumulate disclosed constraints      │
+                 │    into state.slots                      │
+                 │  · compose state.query (category + all   │
+                 │    constraints so far)                   │
+                 │  · choose next ask_attribute             │
+                 └───────────────────┬─────────────────────┘
+                                     │ state.query
+                 ┌───────────────────▼─────────────────────┐
+                 │  retrieve()       starter/retrieval.py   │
+                 │  · SQLite FTS5 BM25 over the catalog     │
+                 │  · returns a 500-candidate pool          │
+                 └───────────────────┬─────────────────────┘
+                                     │ 500 candidates
+                 ┌───────────────────▼─────────────────────┐
+                 │  rank()             starter/ranking.py   │
+                 │  · IDF-weighted field scoring against    │
+                 │    the accumulated state                 │
+                 │  · reciprocal-rank fusion with BM25's    │
+                 │    own ordering                          │
+                 └───────────────────┬─────────────────────┘
+                                     │ ranked pool
+                 ┌───────────────────▼─────────────────────┐
+                 │  agent.respond()     starter/agent.py    │
+                 │  · slice the 10 to return                │
+                 │  · emit message + ask_attribute          │
+                 └───────────────────┬─────────────────────┘
+                                     ▼
+             {message, ask_attribute, recommendations, usage}
+```
+
+Three decisions carry most of the result:
+
+**1. The conversation has to actually extract information.** The baseline sent
+`ask_attribute: None` every turn. The simulated shopper only discloses a new
+constraint when asked about a specific attribute — otherwise it returns fixed
+filler. So the baseline re-queried on *filler tokens* every turn after the
+first, and turn 1 was the only turn that could ever hit.
+
+**2. Ranking has to see more than ten candidates.** `agent.py` originally asked
+`retrieve()` for exactly the ten items being scored, which meant re-ranking
+could reorder them but never change Hit@10. It now draws a 500-candidate pool
+and narrows.
+
+**3. Fuse rankings, not scores.** Replacing BM25's ordering with a lexical score
+threw away hits — of 26 misses at the time, 11 had the target inside BM25's own
+top 10 and re-ranking pushed every one out. Reciprocal-rank fusion is
+scale-free, so neither side needs calibrating against the other.
+
+## Disclosures
+
+- **`agent.py` pages down the ranked list on turns where the shopper has nothing
+  left to disclose**, rather than re-showing a Top 10 already rejected. It is
+  worth +0.018 of the 0.8108. `TJ_ROTATE=off` disables it; the agent scores
+  0.7928 without. Reasoning in `NOTES_dialog.md`.
+- **Tuning used all 200 public sessions**, so `tools/holdout_check.py` is a
+  split-half stability check, not a holdout. The gain holds on both halves but
+  unevenly (+0.083 / +0.013 for the tuned weights; +0.013 / +0.023 for the
+  structural change). Expect the hidden set nearer 0.78 than 0.81.
+- **An optional local-LLM re-ranking stage exists** (`starter/llm_rerank.py`,
+  Ollama + qwen2.5:7b-instruct) but is **off by default and not part of the
+  reported score**, because official scoring may run offline. It degrades to
+  the normal ranking when the service is absent.
+### Latency, token usage, and cost
+
+Measured with `py -m tools.perf` on the full 200 public sessions (577 agent
+turns), Windows 11, Python 3.14.4, single core — no GPU used by the scored path.
+
+| | |
+|---|---|
+| Cold start (FTS index + IDF table, once per process) | **3.88 s** |
+| Per-turn latency, mean | **74.3 ms** |
+| Per-turn latency, p50 / p95 | 55.2 ms / 168.6 ms |
+| Per-turn latency, p99 / max | 394.8 ms / 685.5 ms |
+| Wall clock, all 200 sessions | **42.9 s** |
+| Prompt tokens | **0** |
+| Completion tokens | **0** |
+| Estimated model cost | **$0.00** |
+
+No model is called on the scored path, so token usage and cost are structurally
+zero rather than merely small. Cold start is reported separately from per-turn
+latency because they differ by ~50x and a timeout will apply to one or the other.
+
+**Network access required: none.** The agent never opens a socket on the scored
+path. It cannot fail an offline run.
+
+## Repository map
+
+| path | what |
+|------|------|
+| `starter/` | the agent — `agent.py`, `dialog.py`, `retrieval.py`, `ranking.py`, `state.py` |
+| `starter/llm_rerank.py` | optional LLM stage, off by default |
+| `tools/` | diagnostics: `attribution.py`, `holdout_check.py`, `rank_sweep.py`, `rank_probe.py`, `quick_eval.py` |
+| `SCOREBOARD.md` | every measurement, including retired claims |
+| `NOTES_*.md` | per-seat working logs — what was tried and why |
+| `evaluator/`, `data/` | organizer-supplied, unmodified |
+
+---
+
+# Original participant-kit README
+
+Preserved verbatim below for reference — this is the organizer's text, not ours.
 
 Build an AI shopping agent that asks useful follow-up questions and recommends the customer's hidden target product within at most 10 turns.
 
