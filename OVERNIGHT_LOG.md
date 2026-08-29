@@ -1,16 +1,83 @@
 # Overnight log
 
-Unsupervised iterations. Newest last. Every number here was re-run on a clean
-tree before being written down.
+## Morning summary — read this first
 
-Baseline defended throughout:
+**Nothing regressed. Nothing was pushed.** Eleven commits are waiting on local
+`main` for your review.
 
-| | |
+| | verified on a fresh run at 06:32 |
 |---|---|
-| clean 200 sessions | 0.953064, Hit@10 1.0000 |
-| robustness | none 0.9531 / light 0.9305 / medium 0.9240 / heavy 0.8915 |
-| `evaluator/` and `data/` | untouched (checked each iteration) |
-| pushes | none — all work is committed locally for morning review |
+| clean 200 sessions | **0.953064**, Hit@10 **1.0000**, MRR 0.946548, MTTC 2.545 |
+| tests | **80 passed** (was 3 — the organizer's) |
+| documented claims re-verified | **19/19** via `py -m tools.verify_claims` |
+| robustness (3 seeds) | light 0.9302 · medium 0.9268 · heavy 0.8932 · interject 0.9188 · adversarial 0.8890 · truncate 0.8589 |
+| `evaluator/` and `data/` | untouched, checked every iteration |
+
+### What the night was actually about
+
+I set out to add things and mostly ended up **checking things**. Ten of eleven
+iterations found a claim we had already published to be wrong. None of them
+changed the score; all of them changed what we can honestly say about it.
+
+| what was claimed | what is true |
+|---|---|
+| nine tunables earning their place | **three** carry +0.111 of the +0.115; two are inert, one was luck |
+| robustness figures | they were **single-seed draws**, and the medium number quoted was the *minimum* of five |
+| "hold≤3/min=5 scores 0.24" — the reason never to remove `HOLD_UNTIL_TURN` | it scores **0.8279**; the figure predated a second guard nobody had documented |
+| peak memory ~735 MB | **235 MB is ours**; the rest was the evaluator's own harness, and `tracemalloc` could not see SQLite anyway |
+| `BONUS_EXACT_PHRASE` worth +0.016 | **+0.00008** — subsumed, while a table 350 lines away in the same file already said so |
+| `NOTES_ranking.md` "Open questions" | wrong in **all four lines**, including "`ask_attribute` is still hardcoded `None`" |
+| `holdout_check.py`'s "+0.031 vs original" | "original" still contained the post-fusion layer; the real figure is ~+0.85 |
+
+Two of those were **my own process failures**, and they are the ones I would
+most want you to see:
+
+- Iteration 4 said it fixed a stale figure in three files. It fixed two. The
+  wrong number sat in `agent.py` for five more iterations while the log said it
+  was handled.
+- Iteration 2 noticed `holdout_check.py`'s configs were stale, mentioned it in
+  passing, and moved on. Noticing a defect and moving on records it as *known*,
+  which later reads as *resolved*.
+
+### Three decisions that need you
+
+None were acted on overnight: each would push the score below the frozen
+0.953064 baseline, and the standing instruction was to report rather than act.
+All three are in `SCOREBOARD.md`.
+
+1. **The rating tie-break never met our own bar.** Adopted on one split showing
+   +0.0011/+0.0025; over 200 random splits it holds **8%** of the time, full-set
+   gain +0.0002 — under the +0.002 noise floor this project set for itself.
+2. **`BONUS_EXACT_PHRASE` and `BONUS_EXACT_CATEGORY` are inert.** Both were real
+   when adopted; the post-fusion layer has since subsumed them. Removing the
+   category one scores fractionally *higher*.
+3. **Seven of eleven tools reach into private agent internals** (`agent._states`,
+   `ranking._catalog_for`). A justified diagnostic liberty, but an `agent.py`
+   refactor breaks seven tools silently.
+
+### Also worth knowing
+
+- **The submission reproduces cold**: 0.953064 from a clean checkout with all 14
+  caches removed, and again with the system temp directory unwritable. That was
+  an untested total-loss risk — the rules say an unreproducible run may be
+  treated as invalid.
+- **Two mechanisms defend the hold-back cliff, not one.** `HOLD_UNTIL_TURN`
+  bounds the wait; `ANSWER_IF_CONSISTENT` rescues an already-collapsed candidate
+  set. Remove either and it degrades; remove **both** and the agent scores
+  exactly zero. Early-answering looks like a +0.0037 nicety in the stability
+  table. Do not delete it as dead weight.
+- **`DEMO_TRANSCRIPTS.md`** holds six sessions picked by behaviour, including one
+  the agent gets wrong, ready for the video and writeup.
+- **Truncated input is the weakest case** (0.8589) and is deliberately not
+  defended — it sits outside the spec's "inputs are pre-cleaned text strings".
+
+### Still untouched, as agreed
+
+Devpost description, demo video, and the report. The team message drafted
+earlier was never sent, and `main` on GitHub is still at `fc41a5e` — eleven
+commits behind this tree.
+
+---
 
 ---
 
