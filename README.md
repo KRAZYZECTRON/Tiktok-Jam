@@ -10,7 +10,7 @@ product inside a Top-10 list, within 10 turns.
 | | Hit@10 | MRR | MTTC | Technical score |
 |---|--------|-----|------|-----------------|
 | Provided BM25 baseline | 0.1250 | 0.0680 | 9.81 | 0.1067 |
-| **This agent** | **1.0000** | **0.9438** | **2.55** | **0.9522** |
+| **This agent** | **1.0000** | **0.9465** | **2.55** | **0.9531** |
 
 200 public sessions, `evaluator/local_evaluator.py`, unmodified.
 `TechnicalScore = 0.50·Hit@10 + 0.30·MRR + 0.20·Efficiency`.
@@ -138,14 +138,19 @@ turns), Windows 11, Python 3.14.4, single core — no GPU used by the scored pat
 
 | | |
 |---|---|
-| Cold start (FTS index + IDF table, once per process) | **1.98 s** |
-| Per-turn latency, mean | **30.6 ms** |
-| Per-turn latency, p50 / p95 | 27.5 ms / 69.1 ms |
-| Per-turn latency, p99 / max | 94.0 ms / 122.6 ms |
-| Wall clock, all 200 sessions | **15.1 s** |
+| Cold start (FTS index + IDF table, once per process) | **5.9 s** |
+| Per-turn latency, mean | **58.2 ms** |
+| Per-turn latency, p50 / p95 | 53.5 ms / 116.5 ms |
+| Per-turn latency, p99 / max | 144.6 ms / 221.9 ms |
+| Wall clock, all 200 sessions | **29.7 s** |
 | Prompt tokens | **0** |
 | Completion tokens | **0** |
 | Estimated model cost | **$0.00** |
+
+Peak resident memory is ~735 MB, saturating: 1000 sessions through one Agent add
+about 5 MB in total, since the caches are bounded by the catalog rather than by
+session count. Worth stating because the rules permit grading under a memory
+limit.
 
 No model is called on the scored path, so token usage and cost are structurally
 zero rather than merely small. Cold start is reported separately from per-turn

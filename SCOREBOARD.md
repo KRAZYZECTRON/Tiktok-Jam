@@ -22,7 +22,8 @@ Score = 0.50·Hit@10 + 0.30·MRR + 0.20·efficiency, efficiency = (11 − MTTC)/
 | 29 Aug | popularity as a post-fusion tie-break | 1.0000 | 0.9520 | 3.13 | 0.9431 | ✅ |
 | 29 Aug | hold-back threshold 4 → 3, re-tuned for the stronger ranker | 1.0000 | 0.9380 | 2.75 | 0.9464 | ✅ |
 | 29 Aug | answer early when already identified (re-adopted) | 1.0000 | 0.9380 | 2.57 | 0.9501 | ✅ |
-| 29 Aug | product rating as a second post-fusion tie-break | **1.0000** | **0.9438** | **2.55** | **0.9522** | ✅ |
+| 29 Aug | product rating as a second post-fusion tie-break | 1.0000 | 0.9438 | 2.55 | 0.9522 | ✅ |
+| 29 Aug | fuzzy card tier + hardened extraction (robustness) | **1.0000** | **0.9465** | **2.55** | **0.9531** | ✅ |
 
 "verified" = re-run independently on a clean checkout of that commit, not just
 quoted from the authoring session. The dialog-merge row is the one intermediate
@@ -353,6 +354,77 @@ This is the third capability in this project that is implemented, measured, and
 then shipped disabled — after the LLM re-ranker and the popularity prior's
 global form. That is not indecision: each one is a claim the writeup can make
 with a number attached rather than a hope.
+
+## Robustness — the largest risk in the project, and it was unmeasured
+
+Most of the score above ~0.87 rests on three string-equality bets. The spec says
+"natural-language paraphrasing" may be added by the organizer, so those could all
+fail at once. `tools/robustness.py` perturbs the shopper's wording — never the
+ground truth — and re-scores.
+
+| shopper wording | first measured | now |
+|---|---|---|
+| verbatim | 0.9522 | **0.9531** |
+| casing / punctuation | 0.9243 | 0.9305 |
+| filler + reworded carrier | **0.4761** | **0.9240** |
+| light lexical paraphrase | **0.4340** | **0.8915** |
+
+A paraphrasing shopper cost **0.48** and now costs **0.03**.
+
+**The bug was a silent truncation, not weak matching.** Instrumenting the stages
+separately was what found it:
+
+```
+extraction "succeeded":   84% clean   84% paraphrased    <- looked fine
+target matched its slot:  78% clean   26% paraphrased    <- the actual loss
+```
+
+A paraphrased carrier drops the colon — "the thing that matters is solids: 100%
+cotton" — which sent the text to a colon fallback that latched onto the *wrong*
+colon and returned "100% cotton", silently dropping "solids:". Truncated text
+matches no card slot. Two earlier attempts to fix this by strengthening the
+*matcher* barely helped, because the matcher was being handed corrupted input.
+
+**A stage that fails loudly is far easier to find than one that quietly returns
+something wrong.**
+
+The principle that made all three fixes safe: **layer the tolerant rule behind
+the strict one, never instead of it.** Verbatim input takes the exact path, so
+the clean score is untouched. Generalising the strict extractor instead of
+layering cost 0.024.
+
+Also cost three debugging cycles: two literal `0x08` backspace bytes written
+into the regexes by a heredoc escape, where `` became a control character
+instead of a word boundary. The pattern matched nothing and looked correct in
+every text listing — only `cat -A` showed it.
+
+## Other things stress-tested and found sound
+
+| | result |
+|---|---|
+| 1000 sessions through one Agent | memory saturates at ~735 MB, +1 MB per 200 sessions; 7.5 min |
+| `top_k` = 1, 5, 10, 20, 50 | correct, never over-returns |
+| Interleaved sessions | stay independent |
+| Malformed catalog | null fields, wrong types, unicode, FTS metacharacters, duplicate ASINs, 200 KB strings — all survive |
+| Empty catalog | returns nothing, does not raise |
+| Non-string / `None` message | hardened; previously `AttributeError` |
+| `respond()` before `reset()` | hardened; previously `RuntimeError` |
+
+The 735 MB figure is worth knowing: the rules permit grading under memory limits.
+
+## What is left, and why it is mostly not addressable
+
+183 of 200 sessions land at rank 1. Of the 17 that do not: **15 are genuine
+ties** where every rival is equally consistent with everything the shopper
+disclosed, and 2 are parse edge cases — together about 0.002 of score. The
+"rival not consistent but ranked above" category that the post-fusion promotion
+was built for is now **empty**.
+
+The MTTC gap is structural: all 30 `intent_override` sessions are barred from
+hitting before turn 3 by the evaluator's override gate, all 10 `boundary`
+sessions lose a turn to the one-shot deflection, and 45 browsing sessions can
+only reach two disclosed constraints by turn 2 — answering there was measured
+worse (0.9406).
 
 ## Tested and rejected
 
