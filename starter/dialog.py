@@ -30,13 +30,12 @@ from .state import DialogState
 
 # Mirrors evaluator.local_evaluator.MAX_TURNS.
 #
-# Correction to CLAUDE.md, verified against evaluator/local_evaluator.py: the
-# contract says in three places that exceeding the cap is "a forced termination
-# AND a zero score for that session, not just a worse metric." That is false.
-# The harness owns the loop -- `for turn in range(1, MAX_TURNS + 1)` -- so the
-# agent is simply never called an 11th time and cannot exceed the cap. A session
-# that runs out scores hit=False, reciprocal_rank=0.0 and contributes
-# MAX_TURNS + 1 to MTTC, which is exactly "a worse metric".
+# The problem statement defines this as a hard limit -- "forced termination and
+# zero score if exceeded" -- and that is the rule. Verified against
+# evaluator/local_evaluator.py, it is also structurally unreachable from inside
+# the agent: the harness owns the loop, `for turn in range(1, MAX_TURNS + 1)`,
+# so respond() is simply never called an 11th time. A session that runs out
+# scores hit=False, reciprocal_rank=0.0 and contributes MAX_TURNS + 1 to MTTC.
 #
 # The consequence points opposite to the contract's wording: the evaluator's
 # loop breaks on the first hit, so an unused turn costs nothing. Never stop

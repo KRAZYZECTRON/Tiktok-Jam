@@ -57,16 +57,18 @@ def rank(candidates: list[Candidate], state: DialogState) -> list[Candidate]:
 # Evaluator entry point: python3 -m evaluator.local_evaluator
 
 ## Hard rules
-- 10-turn cap. The harness owns it, not us: evaluator/local_evaluator.py loops
+- 10-turn cap. The official problem statement states it as "Hard limit of 10
+  turns per session (forced termination and zero score if exceeded)", and that
+  is the rule we build to. In the shipped harness it is **structurally
+  unreachable**: evaluator/local_evaluator.py loops
   `for turn in range(1, MAX_TURNS + 1)`, so the agent is never called an 11th
-  time and cannot exceed the cap. update_state() still holds the cap for its own
-  bookkeeping, but there is nothing to enforce and nothing to work around.
-  (Earlier versions of this file said exceeding the cap was "a forced
-  termination AND a zero score, not just a worse metric." That was wrong —
-  verified against the evaluator. A session that runs out scores hit=False,
-  reciprocal_rank=0.0, and contributes MAX_TURNS + 1 to MTTC: exactly a worse
-  metric. The correction is kept visible because the false version had already
-  propagated into starter/dialog.py and into the seat briefs.)
+  time and cannot exceed the cap on its own. update_state() still holds the cap
+  for its own bookkeeping.
+  The practical consequence, which earlier versions of this file got backwards:
+  because the cap cannot be breached from inside the agent, there is nothing to
+  defend against, and a session that simply runs out of turns scores hit=False,
+  reciprocal_rank=0.0 and MAX_TURNS + 1 toward MTTC. So do not spend design
+  effort guarding a boundary the harness already enforces.
 - The loop breaks on the first hit, so an unused turn costs nothing. Never
   terminate early.
 - **Superseded (29 Aug): "never withhold recommendations to stay safe".** That

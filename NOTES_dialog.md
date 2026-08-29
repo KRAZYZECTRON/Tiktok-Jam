@@ -241,7 +241,7 @@ matching. The measurements in this file are sound.
 The only change is a comment block, and the score is bit-identical after it.
 
 **Why the comment was worth changing.** `MAX_TURNS`'s docstring repeated the
-contract's claim that exceeding the cap is "a forced termination and a zero for
+contract's framing of the cap as "a forced termination and a zero for
 that session, not merely a worse metric." Checked against
 `evaluator/local_evaluator.py`: the harness owns the loop
 (`for turn in range(1, MAX_TURNS + 1)`), so the agent is never called an 11th
