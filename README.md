@@ -251,8 +251,8 @@ shopper's phrasing — never the ground truth — and re-scores:
 |---|---|---|---|---|
 | verbatim (as the current simulator emits) | 1.0000 | **0.9531** | — | 0.9522 |
 | casing and punctuation drift | 1.0000 | 0.9305 | −0.023 | 0.9243 |
-| filler + reworded carrier phrase | 0.6600 | 0.5973 | **−0.356** | 0.4761 |
-| light lexical paraphrase | 0.7050 | 0.6230 | −0.330 | 0.4340 |
+| filler + reworded carrier phrase | 0.9900 | **0.9240** | −0.029 | 0.4761 |
+| light lexical paraphrase | 0.9850 | **0.8915** | −0.062 | 0.4340 |
 
 The spec states that *"natural-language paraphrasing"* may be added by the
 organizer, so this is a live risk rather than a hypothetical one.
@@ -273,19 +273,25 @@ nothing changes:
    no product at all. A token-overlap tier (75% of the constraint's tokens in one
    slot) now scores below the exact tier.
 
-Together those recovered **+0.121 and +0.189** at the two paraphrase levels.
-Order mattered in both cases: generalising the extractor *instead of* layering it
-cost 0.024, and a 0.6 overlap threshold was permissive enough to stop
-discriminating (0.568 vs 0.597 at 0.75).
+Together those took a paraphrasing shopper from **−0.48 to −0.03**.
 
-The clean score moved 0.9522 → 0.9531, but split-half is +0.000 / +0.0017 — so
-that is not a real clean-set gain, just evidence the hedge **costs nothing**.
-That is the honest claim: robustness bought here was free, not profitable.
+The decisive part was subtle and worth recording. Making the general rule's
+colon *optional* mattered more than either tier. With a colon required, a carrier
+like "the thing that matters is solids: 100% cotton" fell through to the colon
+fallback, which then latched onto the **wrong** colon and returned
+`"100% cotton"` — dropping `"solids:"`. Extraction appeared to succeed while
+silently truncating, and truncated text matches no card slot. Diagnostics showed
+the target matching its own slot on **26%** of paraphrased turns against 78% of
+clean ones, while extraction "succeeded" 84% of the time either way. A stage that
+fails loudly is far easier to find than one that quietly returns something wrong.
 
-**We are still brittle.** A paraphrasing shopper costs ~0.36. Closing that
-further would mean weakening the exact-match signals that produce most of the
-score, and on the evidence available — the hidden 800 come from the same code
-path — that is the wrong trade. If paraphrasing *is* added, expect ~0.6.
+Order still mattered everywhere: generalising the strict extractor *instead of*
+layering behind it cost 0.024, and a 0.6 fuzzy-overlap threshold was permissive
+enough to stop discriminating (0.568 vs 0.597 at 0.75).
+
+The clean score moved 0.9522 → 0.9531, but split-half is +0.000 / +0.0017, so
+that is not a real clean-set gain — just evidence the hedging **costs nothing**.
+Robustness here was free rather than profitable, which is the honest claim.
 
 **Other limitations worth naming:**
 

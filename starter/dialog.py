@@ -68,8 +68,19 @@ PAYLOAD_RE = re.compile(
 )
 # 2. Any short lead-in clause ending in "is"/"need" -- covers "what I care about
 #    is", "the thing that matters is", and anything else phrased that way.
+# The colon is OPTIONAL here, deliberately. A paraphrased carrier often drops
+# it -- "the thing that matters is solids: 100% cotton" -- and requiring one
+# sent that text to the colon fallback below, which grabbed the WRONG colon and
+# returned "100% cotton" instead of the whole constraint. Extraction appeared to
+# succeed while silently truncating, which is worse than failing outright:
+# measured, the target then matched its own card slot on 26% of paraphrased
+# turns against 78% of clean ones.
+#
+# Safe to loosen only because this sits BEHIND the strict rule: on the wording
+# the simulator actually emits, PAYLOAD_RE matches first and this never runs.
+# Loosening the strict rule itself cost 0.024.
 PAYLOAD_GENERAL_RE = re.compile(
-    r"(?:^|[,.;]\s*)[a-z0-9'\s]{0,40}?(?:is|need)\s*:\s*(.+)", re.I
+    r"(?:^|[,.;]\s*)[a-z0-9'\s]{0,40}?(?:is|need)\s*(?::\s*|\s+)(.+)", re.I
 )
 # 3. Failing both, whatever follows the first colon -- where a stated
 #    requirement almost always sits.
