@@ -224,8 +224,8 @@ def update_state(state: DialogState, message: str, turn: int) -> DialogState:
             for part in payload.group(1).split(";"):
                 _record(state, part)
 
+    previous_query = state.query
     state.query = _compose_query(state)
-    previous_ask = asked  # what we asked going *into* this turn, "" if nothing
     state.ask_attribute = _next_attribute(state)
 
     # Measured: no session has ever hit after turn 4, and in every one of the
@@ -241,9 +241,30 @@ def update_state(state: DialogState, message: str, turn: int) -> DialogState:
     # scores each turn's list independently and stops at the first hit, so this
     # is free: it cannot cost a hit that would otherwise have happened.
     #
-    # This is gated on having asked nothing last turn, deliberately. While any
-    # attribute is still live, the top ten is the best answer we have and
-    # sliding off it would displace a genuine turn-2 or turn-3 hit.
-    if turn > 1 and not previous_ask and state.ask_attribute is None:
+    # The gate is whether the *query changed*, not whether we have run out of
+    # questions. If this turn added no slot, state.query is byte-identical to
+    # last turn's, so retrieve() draws the same pool and rank() returns the same
+    # order -- re-showing that top ten is provably useless, not merely likely to
+    # be. Asking and rotating are independent: ask_attribute shapes the *next*
+    # message while recommendations are scored *now*, so a turn can do both.
+    #
+    # The earlier gate (`not previous_ask and ask_attribute is None`) waited for
+    # the probe list to drain, which measured worse: tools/attribution.py showed
+    # misses whose ask sequence ran other,other,other,color,size,style -- six
+    # asks, several returning nothing, while exhausted_turns stayed 0 and the
+    # rotation never engaged. public_0017 missed with the target at pool rank 16
+    # and public_0096 at 27, both inside the first rotation step.
+    #
+    # Still safe on productive turns: a turn that discloses anything changes the
+    # query, so the window stays on the head exactly when the head is fresh.
+    #
+    # And the offset must *reset* when the query moves. Without this the window
+    # stays parked on page 3 after a later disclosure has refreshed the head --
+    # which is exactly how the first version of this gate lost MRR (0.573 ->
+    # 0.545) while gaining Hit@10: it found more targets, deeper, having slid
+    # off a head that had since become correct.
+    if turn > 1 and state.query == previous_query:
         state.exhausted_turns += 1
+    else:
+        state.exhausted_turns = 0
     return state
