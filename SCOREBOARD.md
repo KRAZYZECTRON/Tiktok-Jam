@@ -19,7 +19,8 @@ Score = 0.50·Hit@10 + 0.30·MRR + 0.20·efficiency, efficiency = (11 − MTTC)/
 | 29 Aug | bounded hold-back until 4 constraints disclosed | 1.0000 | 0.8538 | 3.20 | 0.9122 | ✅ |
 | 29 Aug | promote card-consistent candidates *after* fusion | 1.0000 | 0.8862 | 3.15 | 0.9230 | ✅ |
 | 29 Aug | promote category match after fusion too | 1.0000 | 0.8924 | 3.14 | 0.9250 | ✅ |
-| 29 Aug | popularity as a post-fusion tie-break | **1.0000** | **0.9520** | **3.13** | **0.9431** | ✅ |
+| 29 Aug | popularity as a post-fusion tie-break | 1.0000 | 0.9520 | 3.13 | 0.9431 | ✅ |
+| 29 Aug | hold-back threshold 4 → 3, re-tuned for the stronger ranker | **1.0000** | **0.9380** | **2.75** | **0.9464** | ✅ |
 
 "verified" = re-run independently on a clean checkout of that commit, not just
 quoted from the authoring session. The dialog-merge row is the one intermediate
@@ -282,6 +283,23 @@ This is the second time in this project that a rejected idea turned out to be a
 placement error rather than a bad idea, after the card bonus that RRF was
 flattening. **When something with a sound mechanism measures badly, check where
 it is applied before concluding the mechanism is wrong.**
+
+## The hold-back threshold is a trade, not a constant
+
+`MIN_DISCLOSED=4` was optimal when the ranker produced MRR 0.66: waiting a turn
+bought a much better rank. Once ranking reached MRR 0.95 the same wait bought
+far less, while still costing a full turn of MTTC — and 3 became better
+(0.9464 vs 0.9431, split-half +0.0031 / +0.0035).
+
+Nothing about the dialog changed; the *ranker* changed and moved the optimum of
+a parameter in a different module. **Re-check this whenever ranking moves
+materially.** It is the one coupling in the pipeline where a local improvement
+silently invalidates a setting somewhere else.
+
+Popularity was re-tuned at the new operating point too. 0.003 edges ahead on
+raw score (0.9470) but drops Hit@10 to 0.9950; 0.002 holds 1.0000 for 0.0006
+less, which is noise. A maxed metric is the safer thing to carry to the hidden
+800, so 0.002 stays.
 
 ## Tested and rejected
 

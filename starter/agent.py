@@ -50,7 +50,11 @@ CONFIDENCE_MAX = int(os.environ.get("TJ_CONFIDENCE", "0"))
 # sessions never disclose more than four constraints, so a threshold that
 # cannot be met combined with a late bound means never answering at all. At
 # hold<=2 that failure mode is unreachable -- turn 3 always answers.
-MIN_DISCLOSED = int(os.environ.get("TJ_MIN_DISCLOSED", "4"))
+# 4 was optimal when the ranker was weaker (MRR 0.66). As ranking improved the
+# balance moved: with MRR at 0.95 an extra turn of waiting buys much less, and 3
+# now scores better (0.9464 vs 0.9431, split-half +0.0031/+0.0035). Re-check
+# this whenever ranking changes materially -- it is a trade, not a constant.
+MIN_DISCLOSED = int(os.environ.get("TJ_MIN_DISCLOSED", "3"))
 HOLD_UNTIL_TURN = int(os.environ.get("TJ_HOLD_UNTIL", "2"))
 # ...but answer early anyway when the conversation has *already* identified the
 # product. The hold exists because a rank drawn from a large consistent set is
