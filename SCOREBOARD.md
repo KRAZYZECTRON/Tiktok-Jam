@@ -16,7 +16,8 @@ Score = 0.50·Hit@10 + 0.30·MRR + 0.20·efficiency, efficiency = (11 − MTTC)/
 | 29 Aug | exact-phrase containment bonus in `rank()` | 0.9950 | 0.6287 | 2.51 | 0.8560 | ✅ |
 | 29 Aug | verbatim category containment | 1.0000 | 0.6406 | 2.47 | 0.8629 | ✅ |
 | 29 Aug | conjunctive intent-card consistency | 1.0000 | 0.6606 | 2.35 | 0.8712 | ✅ |
-| 29 Aug | bounded hold-back until 4 constraints disclosed | **1.0000** | **0.8538** | **3.20** | **0.9122** | ✅ |
+| 29 Aug | bounded hold-back until 4 constraints disclosed | 1.0000 | 0.8538 | 3.20 | 0.9122 | ✅ |
+| 29 Aug | promote card-consistent candidates *after* fusion | **1.0000** | **0.8862** | **3.15** | **0.9230** | ✅ |
 
 "verified" = re-run independently on a clean checkout of that commit, not just
 quoted from the authoring session. The dialog-merge row is the one intermediate
@@ -196,7 +197,32 @@ Most sessions never disclose more than four constraints, so a threshold that
 cannot be met plus a late bound means never answering. At `HOLD_UNTIL_TURN=2`
 that is unreachable — turn 3 always answers. **Never remove the bound.**
 
-## Why 0.9122 is close to the information ceiling
+## RRF was flattening the identification signal
+
+`BONUS_CARD_ALL` feeds the **stage-A score**, and RRF then reduces stage A to a
+*rank*. Being stage-A #1 rather than #5 is worth `1/61` vs `1/65` — so a bonus
+of 1000 bought essentially nothing once fused, and BM25's opinion could still
+outweigh a near-certain identification.
+
+Found by classifying the 43 sessions that were not reaching rank 1:
+
+| | count |
+|---|---|
+| genuine tie — rivals also fully consistent | 24 |
+| **rivals NOT consistent, ranked above anyway** | **17** |
+| target failed its own card filter (parse loss) | 2 |
+
+Those 17 were winnable. Applying the same consistency as a **post-fusion** term
+(`BONUS_CARD_FUSED`) rather than inside stage A: MRR 0.8538 → 0.8862, score
+0.9122 → 0.9230. It saturates immediately — 0.02, 0.1 and 0.5 all score
+identically — which is the signature of a lexicographic key rather than a
+weight. Split-half +0.018 / +0.0034.
+
+The lesson generalises: **where a signal is applied matters as much as how
+strongly.** A rank-fusion step will silently flatten any evidence expressed as a
+score, however confident that evidence is.
+
+## Why ~0.92 is close to the information ceiling
 
 Not a hunch — the two measurements meet:
 

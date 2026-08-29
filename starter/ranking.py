@@ -194,6 +194,20 @@ BONUS_CARD_POSITION = _tunable("TJ_B_CARD_POS", 0.0)
 # Saturates: 1000 and 5000 both score 0.871167, so this is a lexicographic
 # "consistent with everything disclosed" key rather than a weight.
 BONUS_CARD_ALL = _tunable("TJ_B_CARD_ALL", 1000.0)
+# The same signal again, applied AFTER fusion instead of inside stage A.
+#
+# BONUS_CARD_ALL feeds the stage-A score, which RRF then reduces to a *rank* --
+# so being stage-A #1 rather than #5 is worth 1/61 vs 1/65, and a large bonus
+# buys almost nothing once fused. Measured consequence: of 43 sessions not
+# reaching rank 1, 17 had the target fully consistent with the disclosure while
+# the items above it were not. Fusion was flattening a near-certain
+# identification into a rounding error.
+#
+# RRF scores are ~0.03, so anything above ~0.1 here is a true lexicographic key:
+# card-consistent candidates first, fused order within each group.
+# Saturates immediately -- 0.02, 0.1 and 0.5 all score 0.922956 -- which is the
+# signature of a key rather than a weight. Shipped at 0.1, mid-plateau.
+BONUS_CARD_FUSED = _tunable("TJ_B_CARD_FUSED", 0.1)
 # --- How BM25's ordering and this module's scoring are combined -------------
 #
 # Stage A used to *replace* retrieve()'s ordering, keeping only a flat
@@ -540,6 +554,17 @@ def rank(candidates: list[Candidate], state: DialogState) -> list[Candidate]:
     disclosed = _disclosed_constraints(_constraints)
     state.disclosed_count = len(disclosed)
 
+    # Which candidates are consistent with everything disclosed. Computed once
+    # here and used twice: to promote them after fusion, and as the agent's
+    # confidence signal.
+    consistent: set[str] = set()
+    if disclosed:
+        for candidate in candidates:
+            slots = catalog.card.get(candidate.parent_asin, ())
+            if slots and all(value in slots for value in disclosed):
+                consistent.add(candidate.parent_asin)
+    state.card_consistent = len(consistent) if disclosed else len(candidates)
+
     # retrieve() returns its pool already in BM25 order, so a candidate's index
     # *is* its retrieval rank.
     stage_a = {
@@ -564,19 +589,8 @@ def rank(candidates: list[Candidate], state: DialogState) -> list[Candidate]:
                 WEIGHT_RRF_RETRIEVAL / (RRF_K + position + 1)
                 + WEIGHT_RRF_STAGE_A / (RRF_K + stage_a_rank[position])
             )
-
-    # How many pooled candidates are consistent with everything disclosed. This
-    # is the agent's confidence: 1 means the conversation has identified a single
-    # product, a large number means it has not narrowed anything yet.
-    if disclosed:
-        consistent = 0
-        for candidate in candidates:
-            slots = catalog.card.get(candidate.parent_asin, ())
-            if slots and all(value in slots for value in disclosed):
-                consistent += 1
-        state.card_consistent = consistent
-    else:
-        state.card_consistent = len(candidates)
+            if candidate.parent_asin in consistent:
+                candidate.score += BONUS_CARD_FUSED
 
     ordered = sorted(candidates, key=lambda item: item.score or 0.0, reverse=True)
 
