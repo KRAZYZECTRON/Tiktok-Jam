@@ -18,7 +18,8 @@ Score = 0.50·Hit@10 + 0.30·MRR + 0.20·efficiency, efficiency = (11 − MTTC)/
 | 29 Aug | conjunctive intent-card consistency | 1.0000 | 0.6606 | 2.35 | 0.8712 | ✅ |
 | 29 Aug | bounded hold-back until 4 constraints disclosed | 1.0000 | 0.8538 | 3.20 | 0.9122 | ✅ |
 | 29 Aug | promote card-consistent candidates *after* fusion | 1.0000 | 0.8862 | 3.15 | 0.9230 | ✅ |
-| 29 Aug | promote category match after fusion too | **1.0000** | **0.8924** | **3.14** | **0.9250** | ✅ |
+| 29 Aug | promote category match after fusion too | 1.0000 | 0.8924 | 3.14 | 0.9250 | ✅ |
+| 29 Aug | popularity as a post-fusion tie-break | **1.0000** | **0.9520** | **3.13** | **0.9431** | ✅ |
 
 "verified" = re-run independently on a clean checkout of that commit, not just
 quoted from the authoring session. The dialog-merge row is the one intermediate
@@ -257,6 +258,31 @@ Remaining loss decomposes as **0.0439 from MRR** (43 sessions off rank 1) and
 hold-back the MTTC floor is 3.0, so the reachable maximum is ≈0.96, and the last
 0.044 of it sits behind genuinely ambiguous evidence.
 
+## The same signal in the wrong place: popularity
+
+Popularity was rejected outright earlier in this file. That was correct for how
+it was being applied and wrong about the signal itself.
+
+Applied **globally**, `log1p(rating_number)` competes with the evidence about
+what the shopper actually described, and every non-zero value scored worse.
+Applied **post-fusion, sized to break ties only**, it is worth **+0.018** —
+MRR 0.8924 → 0.9520 with Hit@10 still 1.0000, split-half +0.016 / +0.020.
+
+The reason is that the two placements answer different questions. Among
+candidates that are *equally consistent with everything the shopper disclosed*,
+there is no evidence left to compete with, and the remaining question is exactly
+the one popularity answers: **which of these did someone actually buy?** The
+ground truth is a real purchase record, so that prior is not a heuristic here —
+it is the generating process.
+
+Above 0.003 it starts costing a hit, which at 0.50 weight is never worth the
+extra MRR. Shipped at 0.002.
+
+This is the second time in this project that a rejected idea turned out to be a
+placement error rather than a bad idea, after the card bonus that RRF was
+flattening. **When something with a sound mechanism measures badly, check where
+it is applied before concluding the mechanism is wrong.**
+
 ## Tested and rejected
 
 Recorded so nobody spends hours re-deriving them. All remain exposed as
@@ -268,7 +294,7 @@ tunables at inert defaults, so each is one env var away from reproducing.
 | **Answer early when already certain** | +0.0031 full, **−0.0026 / +0.0087 split-half** | Skip the hold-back when the consistent set is already down to one. Looks like a clean MTTC win (3.195 → 2.880) until you split it: the sign flips between halves, because whether that single candidate is *actually* the target varies by session. Rejected on the same standard as everything else here. `TJ_ANSWER_IF`, disabled. |
 | **Semicolon-tolerant card matching** | 0.9122 → 0.9096 | Strict equality rejects the true target on 6.7% of scored turns, because one card slot can contain "; " internally and the splitter shatters it. Fixing it made things **worse**, twice — via containment (0.9090) and via substring tolerance (0.9096). The strict filter's failure mode is benign: when it rejects everyone the bonus goes inert and other signals rank. A looser filter instead manufactures false positives. A real bug that is better left unfixed. |
 | **Adaptive probing** | not implementable | The obvious next idea, and it cannot work. `customer_reply` caps disclosure at `[:2]` per reply and `"other"` already returns the first two undisclosed *in card order* — the agent asks `"other"` on turns 1-3 in 200/200 sessions. Disclosure is already at the evaluator's maximum rate; no smarter question extracts faster. Measuring this before building it saved the work. |
-| **Popularity prior** (`log1p(rating_number)`) | 0.8629 → 0.8488 at best non-zero | The target *is* a real purchase, so this sounded well-founded. It drives MTTC down hard (2.47 → 1.91) but knocks Hit@10 off 1.0000 and MRR with it: a prior on "what people buy", competing with evidence about "what this shopper described" rather than complementing it. |
+| **Popularity prior, applied globally** | 0.8629 → 0.8488 at best non-zero | **Superseded — see below. The signal was right, the placement was wrong.** | The target *is* a real purchase, so this sounded well-founded. It drives MTTC down hard (2.47 → 1.91) but knocks Hit@10 off 1.0000 and MRR with it: a prior on "what people buy", competing with evidence about "what this shopper described" rather than complementing it. |
 | **Profile-rating personalization** | 0.8629 → 0.8555 at worst | Matching the catalog's `average_rating` to the profile's `average_prior_rating`. A named innovation direction in the spec, so worth testing, but `average_prior_rating` describes the shopper's rating *habits*, not a preference over quality — no information about which item they bought, and it dilutes evidence that does. |
 | **Length-scaled phrase bonus** | flat to −0.001 | A longer verbatim match ought to be less coincidental, but containment is already near-binary here. |
 | **Title-position phrase bonus** | +0.002 | Inside noise on 200 sessions; declines again above 150. Not adopted on principle — see the n=40 lesson in `NOTES_ranking.md`. |

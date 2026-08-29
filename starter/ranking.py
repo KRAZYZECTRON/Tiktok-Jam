@@ -218,6 +218,16 @@ BONUS_CAT_FUSED = _tunable("TJ_B_CAT_FUSED", 0.02)
 # worse. The card term already accounts for everything the phrase count would
 # say, so this only adds noise. Kept tunable to keep the result reproducible.
 BONUS_PHRASE_FUSED = _tunable("TJ_B_PHRASE_FUSED", 0.0)
+# Popularity again -- but as a last-resort tie-break rather than a global prior.
+# It failed globally (see SCOREBOARD) because it competes with evidence about
+# what the shopper described. Among candidates that are *equally consistent with
+# everything disclosed*, there is no evidence left to compete with, and "which
+# of these did someone actually buy" is the right question: the ground truth is
+# a real purchase record. Sized to break ties only.
+# 0.002: Hit@10 stays 1.0000 and MRR goes 0.8924 -> 0.9520. Above 0.003 it
+# starts costing a hit, which at 0.50 weight is not worth the extra MRR.
+# Split-half +0.016 / +0.020.
+BONUS_POP_FUSED = _tunable("TJ_B_POP_FUSED", 0.002)
 # --- How BM25's ordering and this module's scoring are combined -------------
 #
 # Stage A used to *replace* retrieve()'s ordering, keeping only a flat
@@ -615,6 +625,7 @@ def rank(candidates: list[Candidate], state: DialogState) -> list[Candidate]:
             if candidate.parent_asin in cat_hit:
                 candidate.score += BONUS_CAT_FUSED
             candidate.score += BONUS_PHRASE_FUSED * phrase_n.get(candidate.parent_asin, 0)
+            candidate.score += BONUS_POP_FUSED * catalog.popularity.get(candidate.parent_asin, 0.0)
 
     ordered = sorted(candidates, key=lambda item: item.score or 0.0, reverse=True)
 
