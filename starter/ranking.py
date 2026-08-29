@@ -538,6 +538,7 @@ def rank(candidates: list[Candidate], state: DialogState) -> list[Candidate]:
     except (TypeError, ValueError):
         prior_rating = None
     disclosed = _disclosed_constraints(_constraints)
+    state.disclosed_count = len(disclosed)
 
     # retrieve() returns its pool already in BM25 order, so a candidate's index
     # *is* its retrieval rank.

@@ -41,3 +41,7 @@ class DialogState:
     # Set by ranking.rank(): how many pooled candidates are still consistent
     # with every disclosed constraint. 1 = identified, large = still guessing.
     card_consistent: int = 0
+    # How many distinct constraints the shopper has disclosed so far. The
+    # consistent-product set collapses from a median of 78 at two to 1 at three,
+    # so this is the agent's cue that it can identify rather than guess.
+    disclosed_count: int = 0

@@ -27,6 +27,60 @@ POOL_K = int(os.environ.get("TJ_POOL_K", "500"))
 # +0.0012 of score against -0.0002 for the later turn -- 6:1 in favour of
 # waiting. 0 disables the behaviour entirely.
 CONFIDENCE_MAX = int(os.environ.get("TJ_CONFIDENCE", "0"))
+# Bounded hold-back. The evaluator caps disclosure at two constraints per reply
+# and scores the rank at the *first* hit, so answering before the shopper has
+# said enough locks in a poor reciprocal rank for the whole session. Measured
+# median size of the still-consistent product set: 2574 at one constraint, 78 at
+# two, and 1 at three. Below MIN_DISCLOSED we are guessing, not identifying.
+#
+# Bounded by HOLD_UNTIL_TURN so this can never cost a hit: from that turn on we
+# always answer, leaving the rest of the 10-turn budget intact. An earlier
+# unbounded version gated on the consistent-set size instead and did lose hits
+# (Hit@10 1.0000 -> 0.90) because a session whose set never shrinks never
+# answered at all.
+#
+# Grid over both parameters (Hit@10 / score):
+#   hold<=2 min=4  1.0000 / 0.9122   <- shipped
+#   hold<=2 min=5  1.0000 / 0.9120      insensitive to min, because the turn-2
+#   hold<=2 min=6  1.0000 / 0.9120      bound caps the wait regardless
+#   hold<=3 min=4  0.9850 / 0.9026
+#   hold<=3 min=5  0.2750 / 0.2438   <- cliff
+#   hold<=4 min=5  0.0650 / 0.0558
+# The cliff is why HOLD_UNTIL_TURN matters more than MIN_DISCLOSED: most
+# sessions never disclose more than four constraints, so a threshold that
+# cannot be met combined with a late bound means never answering at all. At
+# hold<=2 that failure mode is unreachable -- turn 3 always answers.
+MIN_DISCLOSED = int(os.environ.get("TJ_MIN_DISCLOSED", "4"))
+HOLD_UNTIL_TURN = int(os.environ.get("TJ_HOLD_UNTIL", "2"))
+
+
+# Customer-facing phrasing. The spec (README, "On every turn the agent may")
+# lists asking a clarification question as a standalone option, separate from
+# returning a ranked list -- so a turn that asks without recommending is
+# sanctioned behaviour, not a gap. It does have to actually read as a question.
+ATTRIBUTE_PROMPTS = {
+    "material": "What material are you hoping for?",
+    "color": "Any particular colour in mind?",
+    "size": "What size or fit are you after?",
+    "style": "What style are you going for?",
+    "brand": "Any brand you prefer?",
+    "budget": "Roughly what budget did you have in mind?",
+    "feature": "Is there a particular feature that matters most?",
+    "use_case": "What will you mainly be using it for?",
+    "category": "What kind of item are you after exactly?",
+    "other": "Tell me a bit more about what matters to you.",
+}
+
+
+def _message(state: DialogState, window: list) -> str:
+    """What the shopper reads. Must stay consistent with what we returned."""
+    attribute = getattr(state, "ask_attribute", None)
+    question = ATTRIBUTE_PROMPTS.get(attribute or "", "")
+    if not window:
+        return question or "Could you tell me a little more about what you need?"
+    if question:
+        return f"Here are the closest matches so far. {question}"
+    return "Here are the closest matches I found."
 
 
 class Agent:
@@ -66,9 +120,15 @@ class Agent:
         rotating = os.environ.get("TJ_ROTATE") != "off"
         offset = getattr(state, "exhausted_turns", 0) * top_k if rotating else 0
         window = ranked[offset:offset + top_k] or ranked[:top_k]
-        # Not confident yet: ask, but do not spend the session's one scored
-        # guess on a list we expect to rank the target low in.
-        if (
+        # Still guessing: ask, but do not spend the session's one scored answer
+        # on a list we expect to rank the target low in.
+        holding = (
+            MIN_DISCLOSED
+            and turn <= HOLD_UNTIL_TURN
+            and getattr(state, "disclosed_count", 0) < MIN_DISCLOSED
+            and getattr(state, "ask_attribute", None) is not None
+        )
+        if holding or (
             CONFIDENCE_MAX
             and turn < MAX_TURNS
             and getattr(state, "card_consistent", 0) > CONFIDENCE_MAX
@@ -82,7 +142,7 @@ class Agent:
 
             usage = llm_usage()
         return {
-            "message": "Here are the closest matches I found.",
+            "message": _message(state, window),
             # The simulated shopper only discloses a constraint when asked about
             # a specific attribute; with None it returns filler and the query
             # never grows past turn 1. dialog.py decides which attribute.

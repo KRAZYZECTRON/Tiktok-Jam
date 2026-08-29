@@ -68,8 +68,19 @@ def rank(candidates: list[Candidate], state: DialogState) -> list[Candidate]:
   metric. The correction is kept visible because the false version had already
   propagated into starter/dialog.py and into the seat briefs.)
 - The loop breaks on the first hit, so an unused turn costs nothing. Never
-  terminate early and never withhold recommendations to "stay safe" — doing so
-  gives up free retries and strictly loses points.
+  terminate early.
+- **Superseded (29 Aug): "never withhold recommendations to stay safe".** That
+  was correct while Hit@10 was the binding metric — an extra turn was a free
+  retry. Hit@10 is now 1.0000, so the binding metric is MRR, and the evaluator
+  scores the rank at the *first* hit. Answering before the shopper has disclosed
+  enough locks in a poor reciprocal rank for the whole session. The consistent-
+  product set has median size 78 at two disclosed constraints and 1 at three, so
+  agent.py holds its answer back on turns 1-2 until four are disclosed, and
+  always answers from turn 3. Worth +0.041. The spec's own wording permits it:
+  the README lists asking a clarification question as a standalone option,
+  separate from returning a ranked list.
+  The bound matters more than the threshold — see the cliff documented in
+  agent.py. Never remove HOLD_UNTIL_TURN.
 - Local scoring is against the 200 public dev sessions only — the organizer
   holds 800 additional hidden sessions for final scoring, with different
   users and products, so don't over-tune to quirks of the visible 200.

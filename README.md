@@ -10,7 +10,7 @@ product inside a Top-10 list, within 10 turns.
 | | Hit@10 | MRR | MTTC | Technical score |
 |---|--------|-----|------|-----------------|
 | Provided BM25 baseline | 0.1250 | 0.0680 | 9.81 | 0.1067 |
-| **This agent** | **1.0000** | **0.6606** | **2.35** | **0.8712** |
+| **This agent** | **1.0000** | **0.8538** | **3.20** | **0.9122** |
 
 200 public sessions, `evaluator/local_evaluator.py`, unmodified.
 `TechnicalScore = 0.50·Hit@10 + 0.30·MRR + 0.20·Efficiency`.
@@ -101,13 +101,24 @@ by that and intersecting on what has been disclosed leaves a median of **one**
 consistent product, and uniquely identifies the target in 147 of 200 sessions.
 The match has to be conjunctive — partial credit scored worse than none.
 
-**5. Fuse rankings, not scores.** Replacing BM25's ordering with a lexical score
+**5. Answer later, not better.** The evaluator scores the rank at the *first*
+hit, and the set of products consistent with what the shopper has said has
+median size 78 at two disclosed constraints but 1 at three. So on turns 1-2 the
+agent asks its question *without* a list — one of the three turn shapes the spec
+documents — and always answers from turn 3. MRR 0.66 → 0.85.
+
+**6. Fuse rankings, not scores.** Replacing BM25's ordering with a lexical score
 threw away hits — of 26 misses at the time, 11 had the target inside BM25's own
 top 10 and re-ranking pushed every one out. Reciprocal-rank fusion is
 scale-free, so neither side needs calibrating against the other.
 
 ## Disclosures
 
+- **On turns 1-2 the agent asks its clarification question without returning a
+  list**, until four constraints are disclosed; from turn 3 it always answers.
+  The spec lists asking-without-recommending as a standalone turn shape, and the
+  agent emits a real question in `message`. Worth +0.041. `TJ_MIN_DISCLOSED=0`
+  disables it (0.8712 without).
 - **`agent.py` pages down the ranked list on turns where the shopper has nothing
   left to disclose**, rather than re-showing a Top 10 already rejected. It is
   worth +0.018 of the 0.8108. `TJ_ROTATE=off` disables it; the agent scores
