@@ -153,6 +153,18 @@ BONUS_EXACT_CATEGORY = _tunable("TJ_B_EXACT_CAT", 40.0)
 # falls with it: it is a prior on "what people buy", not on "what this shopper
 # described", and it competes with evidence rather than complementing it.
 BONUS_POPULARITY = _tunable("TJ_B_POPULARITY", 0.0)
+# "Safe personalization using the aggregate profile" is a named innovation
+# direction in the spec, and the profile is nearly unused: preference_tags only
+# break ties. average_prior_rating describes how this shopper rates, so a
+# critical shopper (low prior) plausibly bought something rated lower than a
+# generous one did. Rewards agreement between the two.
+#
+# TESTED AND REJECTED, inert at 0.0:
+#   0 -> 0.8629   5 -> 0.8579   15 -> 0.8558   40 -> 0.8555   100 -> 0.8621
+# Every non-zero value is worse. average_prior_rating describes the shopper's
+# rating *habits*, not a preference over product quality, so it adds no
+# information about which item they bought -- it only dilutes evidence that does.
+BONUS_PROFILE_RATING = _tunable("TJ_B_PROFILE_RATING", 0.0)
 # --- How BM25's ordering and this module's scoring are combined -------------
 #
 # Stage A used to *replace* retrieve()'s ordering, keeping only a flat
@@ -215,6 +227,7 @@ class _Catalog:
         self.fields: dict[str, dict[str, str]] = {}
         self.price: dict[str, float] = {}
         self.popularity: dict[str, float] = {}
+        self.rating: dict[str, float] = {}
         self.idf: dict[str, float] = {}
         self._token_cache: dict[str, dict[str, set[str]]] = {}
         self._load()
@@ -237,6 +250,12 @@ class _Catalog:
                 self.fields[parent_asin] = {
                     name: _text(product.get(name)) for name in FIELD_WEIGHTS
                 }
+                raw_rating = product.get("average_rating")
+                if raw_rating not in (None, ""):
+                    try:
+                        self.rating[parent_asin] = float(raw_rating)
+                    except (TypeError, ValueError):
+                        pass
                 raw_ratings = product.get("rating_number")
                 if raw_ratings not in (None, ""):
                     try:
@@ -387,7 +406,8 @@ def _query_profile(state: DialogState) -> tuple[dict[str, float], str]:
 
 
 def _score(parent_asin: str, weights: dict[str, float], blob: str, catalog: _Catalog,
-           phrases: tuple[str, ...] = (), category_phrase: str = "") -> float:
+           phrases: tuple[str, ...] = (), category_phrase: str = "",
+           prior_rating: float | None = None) -> float:
     tokens = catalog.tokens(parent_asin)
     total = 0.0
     for term, weight in weights.items():
@@ -416,6 +436,11 @@ def _score(parent_asin: str, weights: dict[str, float], blob: str, catalog: _Cat
             if phrase in title_text:
                 total += BONUS_EXACT_TITLE
 
+    if BONUS_PROFILE_RATING and prior_rating is not None:
+        product_rating = catalog.rating.get(parent_asin)
+        if product_rating is not None:
+            total += BONUS_PROFILE_RATING * (1.0 - abs(product_rating - prior_rating) / 4.0)
+
     if BONUS_POPULARITY:
         total += BONUS_POPULARITY * catalog.popularity.get(parent_asin, 0.0)
 
@@ -443,11 +468,15 @@ def rank(candidates: list[Candidate], state: DialogState) -> list[Candidate]:
     _category, _constraints = split_dialog(state)
     phrases = tuple(_phrases(_constraints))
     category_phrase = ' '.join(_category.split()).strip(' .,;:-').lower()
+    try:
+        prior_rating = float((state.user_profile or {}).get("average_prior_rating"))
+    except (TypeError, ValueError):
+        prior_rating = None
 
     # retrieve() returns its pool already in BM25 order, so a candidate's index
     # *is* its retrieval rank.
     stage_a = {
-        candidate.parent_asin: _score(candidate.parent_asin, weights, blob, catalog, phrases, category_phrase)
+        candidate.parent_asin: _score(candidate.parent_asin, weights, blob, catalog, phrases, category_phrase, prior_rating)
         for candidate in candidates
     }
     if FUSION == "linear":

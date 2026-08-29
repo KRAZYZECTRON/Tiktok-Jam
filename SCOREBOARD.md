@@ -130,6 +130,7 @@ tunables at inert defaults, so each is one env var away from reproducing.
 | idea | result | why it failed |
 |------|--------|---------------|
 | **Popularity prior** (`log1p(rating_number)`) | 0.8629 → 0.8488 at best non-zero | The target *is* a real purchase, so this sounded well-founded. It drives MTTC down hard (2.47 → 1.91) but knocks Hit@10 off 1.0000 and MRR with it: a prior on "what people buy", competing with evidence about "what this shopper described" rather than complementing it. |
+| **Profile-rating personalization** | 0.8629 → 0.8555 at worst | Matching the catalog's `average_rating` to the profile's `average_prior_rating`. A named innovation direction in the spec, so worth testing, but `average_prior_rating` describes the shopper's rating *habits*, not a preference over quality — no information about which item they bought, and it dilutes evidence that does. |
 | **Length-scaled phrase bonus** | flat to −0.001 | A longer verbatim match ought to be less coincidental, but containment is already near-binary here. |
 | **Title-position phrase bonus** | +0.002 | Inside noise on 200 sessions; declines again above 150. Not adopted on principle — see the n=40 lesson in `NOTES_ranking.md`. |
 | **`RRF_K` sweep** | ±0.006, non-monotonic | Best at 2, *worst* at 20, second-best at 60. A U-shape across a 30x range is noise, not signal. |

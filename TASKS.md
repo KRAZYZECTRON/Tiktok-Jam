@@ -1,13 +1,13 @@
 # TASKS
 
-`main` is at **`e5b3a2f`** — Hit@10 0.9550 · MRR 0.5729 · MTTC 2.93 · **score 0.8108**
+`main` — Hit@10 **1.0000** · MRR 0.6406 · MTTC 2.465 · **score 0.8629**
 (baseline was 0.1067). Full history and caveats in `SCOREBOARD.md`.
 
 | Task | Owner(s) | Branch | Status |
 |------|----------|--------|--------|
 | Ranking | Vishwak | main | ✅ merged — stage A + RRF fusion |
 | Dialog | YY + Tanush | merged | ✅ merged — accumulated query, `ask_attribute`, rotation |
-| Retrieval | Chetan | `retrieval` | ⚠️ pushed (`80f3cd8`), **unmerged — decision pending, see below** |
+| Retrieval | Chetan | `retrieval` | ❌ **not merging — measured, see below** |
 
 ## Retrieval: pending a decision, not pending work
 
@@ -28,9 +28,19 @@ Against that, merging it costs the thing `main` currently has for free: it is
 `numpy` + `torch` + a HuggingFace download trades a real robustness advantage
 for a benefit nobody has yet measured on the current pipeline.
 
-**Next action:** measure the merge on current `main` before deciding. If it does
-not clearly beat 0.8108, leave it on the branch and write it up as an evaluated
-alternative — that is a legitimate and honest result, not a wasted seat.
+**Measured, and the answer is no.** Merged onto `main` and scored, dense leg
+absent (which is exactly the offline-grading case): **0.807951 against 0.810768**
+— a slight regression, before the later improvements took `main` to 0.862880.
+
+The decisive evidence arrived afterwards. `tools/attribution.py` now reports
+**MISS_RETRIEVAL = 0**: the existing BM25 pool contains the target in all 200
+sessions, and Hit@10 is **1.0000**. There is no retrieval failure left for a
+dense leg to fix. Merging it would trade the pure-stdlib property — our immunity
+to an offline, CPU-only grading run — for a measured negative.
+
+**This is a real result, not a wasted seat**, and it belongs in the writeup: a
+hybrid dense retriever was built, evaluated, and rejected on evidence. The
+branch stays for that purpose.
 
 Known issues to fix first if it does merge:
 - `import numpy as np` is unguarded at module top — a missing numpy kills the
@@ -43,29 +53,32 @@ Known issues to fix first if it does merge:
 
 ## Remaining work
 
-**Verification**
-- [ ] `tools/attribution.py` still hardcodes `ask_attribute=None`; rewrite it to
-      drive the real `Agent` and re-run against the 9 remaining misses
-- [ ] `RANK_USE_LLM=1` is untested since RRF landed — stage B blends into
-      `candidate.score`, which moved from ~30 to ~0.03. Off by default, so it
-      cannot affect scoring, but it is unverified
-- [ ] Re-run `tools/holdout_check.py` on the shipped config
+**Verification** — all done
+- [x] `tools/attribution.py` rewritten to drive the real `Agent`
+- [x] `RANK_USE_LLM=1` re-tested after RRF — **regression (−0.014), stays off**
+- [x] `tools/holdout_check.py` re-run — both halves reach Hit@10 1.0000,
+      deltas +0.0466 / +0.0460
 
 **Submission packaging**
-- [ ] `requirements.txt` (trivial while `main` stays stdlib)
-- [ ] `README.md` — setup, exact Python version, one run command, env vars
-- [ ] Latency / token / cost disclosure — explicitly required by
-      `docs/submission_rules.md`
-- [ ] Architecture diagram
+- [x] `requirements.txt` — no runtime dependencies
+- [x] `README.md` — setup, Python version, one run command, disclosures
+- [x] Latency / token / cost disclosure — measured via `tools/perf.py`
+- [x] Architecture diagram — ASCII in `README.md` (a designed version for
+      Devpost is still worth doing)
 - [ ] Devpost description · demo video · the report — Vishwak
 
-**Open, not promised**
-- [ ] `intent_override` at 0.867 is the weakest slice and 4 of the 9 misses.
-      Any gain here is a bonus; at 0.81 a clean submission is worth more than
-      the marginal point.
+**Open**
+- Hit@10 is **1.0000 and cannot improve**. Only MRR (0.6406, 30% weight) and
+  MTTC (2.465 → efficiency 0.8535, 20% weight) can still move, worth about
+  +0.11 and +0.029 respectively at their theoretical limits.
+- Roughly 100 of 200 hits land at rank 1; the rest spread over ranks 2-10. All
+  remaining headroom is in telling near-identical clothing items apart. The
+  cheap tuning levers are exhausted — see the rejected table in `SCOREBOARD.md`
+  before trying anything, several plausible ideas are already disproved.
 
-**Unanswered question that gates the retrieval decision:** does official scoring
-run offline / CPU-only? One question to the organizer settles it.
+**The offline question is now moot for scoring** — `main` is pure stdlib, calls
+no model and opens no socket, so it is unaffected either way. Still worth
+confirming for the writeup.
 
 ## Standing rules
 
