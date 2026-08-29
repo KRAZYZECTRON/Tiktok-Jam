@@ -137,8 +137,15 @@ class Agent:
         turn: int,
         top_k: int,
     ) -> dict:
+        # Defensive, because the cost of being wrong is asymmetric: the rules
+        # say "Exceptions, invalid output, and timeouts may count as a miss", so
+        # an unhandled error here does not degrade a session, it forfeits it.
+        # The harness always calls reset() first and always passes a string --
+        # but a self-inflicted zero is not worth the two lines saved.
         if session_id not in self._states:
-            raise RuntimeError("reset must be called before respond")
+            self.reset(session_id, {})
+        if not isinstance(user_message, str):
+            user_message = "" if user_message is None else str(user_message)
         state = update_state(self._states[session_id], user_message, turn)
         # After turn 1 the shopper's message is usually fixed filler ("I don't
         # have an additional preference for color."), so retrieving on it builds

@@ -255,6 +255,25 @@ BONUS_CARD_ALL = _tunable("TJ_B_CARD_ALL", 1000.0)
 # Saturates immediately -- 0.02, 0.1 and 0.5 all score 0.922956 -- which is the
 # signature of a key rather than a weight. Shipped at 0.1, mid-plateau.
 BONUS_CARD_FUSED = _tunable("TJ_B_CARD_FUSED", 0.1)
+# A fuzzy tier strictly BELOW the exact one. Card-slot matching is string
+# equality, so a shopper who paraphrases a constraint matches nothing and the
+# identification signal vanishes -- the single largest contributor to our score
+# turning off at once. tools/robustness.py measures that exposure.
+#
+# Layered rather than substituted, the same way the payload extractor is: a
+# candidate matching every disclosed constraint EXACTLY still outranks one
+# matching them only approximately, so behaviour on the current simulator's
+# verbatim wording is unchanged. This tier only decides who wins when nobody
+# matches exactly.
+BONUS_CARD_FUZZY = _tunable("TJ_B_CARD_FUZZY", 0.04)
+# Fraction of a disclosed constraint's tokens that must appear in a card slot
+# for it to count as an approximate match.
+# 0.75, swept against the paraphrase levels rather than the clean set (the clean
+# score is identical at every threshold, because on verbatim wording the exact
+# tier matches first and this one never runs). At 0.6 too many candidates
+# qualify and the tier stops discriminating -- medium paraphrase scores 0.568
+# against 0.597 at 0.75. Above 0.9 it is too strict to catch anything.
+FUZZY_MIN_OVERLAP = _tunable("TJ_B_FUZZY_OVERLAP", 0.75)
 # The same correction applied to the other two identification signals, which are
 # also expressed as stage-A scores and therefore also flattened by fusion. Kept
 # an order of magnitude below the card term so they break ties *within* the
@@ -354,6 +373,7 @@ class _Catalog:
         self.card: dict[str, tuple[str, ...]] = {}
         self.idf: dict[str, float] = {}
         self._token_cache: dict[str, dict[str, set[str]]] = {}
+        self._card_token_cache: dict[str, list[set[str]]] = {}
         self._load()
 
     def _cache_file(self) -> Path:
@@ -427,6 +447,18 @@ class _Catalog:
             else:
                 cached = {name: set(_terms(text)) for name, text in fields.items()}
             self._token_cache[parent_asin] = cached
+        return cached
+
+    def card_tokens(self, parent_asin: str) -> list[set[str]]:
+        """Card slots as token sets, built on demand and kept.
+
+        Only candidates that actually reach the fuzzy tier are tokenised, which
+        on verbatim input is almost none of them.
+        """
+        cached = self._card_token_cache.get(parent_asin)
+        if cached is None:
+            cached = [set(_terms(slot)) for slot in self.card.get(parent_asin, ())]
+            self._card_token_cache[parent_asin] = cached
         return cached
 
     def blob(self, parent_asin: str) -> str:
@@ -508,6 +540,25 @@ def _phrases(constraint_texts: list[str]) -> list[str]:
                 if len(phrase) >= EXACT_MIN_CHARS and phrase not in seen:
                     seen.append(phrase)
     return seen[:int(EXACT_MAX_PHRASES)]
+
+
+def _slot_overlap(constraint_tokens: set, parent_asin: str, catalog: "_Catalog") -> float:
+    """Best fraction of a constraint's tokens found in any one card slot.
+
+    Whole-token overlap rather than character similarity: "pure cotton" against
+    "100% cotton" shares the token that carries the meaning, while an edit
+    distance would call them far apart.
+    """
+    if not constraint_tokens:
+        return 0.0
+    best = 0.0
+    for slot_tokens in catalog.card_tokens(parent_asin):
+        if not slot_tokens:
+            continue
+        shared = len(constraint_tokens & slot_tokens)
+        if shared:
+            best = max(best, shared / len(constraint_tokens))
+    return best
 
 
 def _disclosed_constraints(constraint_texts: list[str]) -> tuple[str, ...]:
@@ -653,11 +704,20 @@ def rank(candidates: list[Candidate], state: DialogState) -> list[Candidate]:
                 phrase_n[candidate.parent_asin] = sum(1 for ph in phrases if ph in text)
 
     consistent: set[str] = set()
+    near_consistent: set[str] = set()
     if disclosed:
+        disclosed_tokens = [set(_terms(value)) for value in disclosed]
         for candidate in candidates:
             slots = catalog.card.get(candidate.parent_asin, ())
-            if slots and all(value in slots for value in disclosed):
+            if not slots:
+                continue
+            if all(value in slots for value in disclosed):
                 consistent.add(candidate.parent_asin)
+            elif BONUS_CARD_FUZZY and all(
+                _slot_overlap(tokens, candidate.parent_asin, catalog) >= FUZZY_MIN_OVERLAP
+                for tokens in disclosed_tokens
+            ):
+                near_consistent.add(candidate.parent_asin)
     state.card_consistent = len(consistent) if disclosed else len(candidates)
 
     # retrieve() returns its pool already in BM25 order, so a candidate's index
@@ -686,6 +746,8 @@ def rank(candidates: list[Candidate], state: DialogState) -> list[Candidate]:
             )
             if candidate.parent_asin in consistent:
                 candidate.score += BONUS_CARD_FUSED
+            elif candidate.parent_asin in near_consistent:
+                candidate.score += BONUS_CARD_FUZZY
             if candidate.parent_asin in cat_hit:
                 candidate.score += BONUS_CAT_FUSED
             candidate.score += BONUS_PHRASE_FUSED * phrase_n.get(candidate.parent_asin, 0)
