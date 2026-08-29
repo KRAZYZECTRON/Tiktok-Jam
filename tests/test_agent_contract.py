@@ -206,3 +206,46 @@ def test_scored_path_opens_no_socket(agent, monkeypatch):
     monkeypatch.setattr(socket, "socket", refuse)
     run(agent, ["I'm looking for Clothing Underwear. A key requirement is: 100% cotton.",
                 "For that, what matters is: tagless."])
+
+
+# --- reproducibility in a grading sandbox ---------------------------------
+
+def test_works_when_the_temp_directory_is_unwritable(catalog, monkeypatch):
+    """Caches are an optimisation, never a dependency.
+
+    `ranking.py` writes an IDF cache and `retrieval.py` an embedding cache, both
+    under the system temp directory. A sandboxed grading environment may have
+    that read-only or absent. The submission rules say an unreproducible run
+    may be treated as invalid, so this must degrade rather than fail.
+
+    Measured separately: the cache is worth ~1.3 s on a 36 s run, so losing it
+    costs almost nothing.
+    """
+    import tempfile
+
+    unwritable = "Z:/nonexistent-readonly-volume"
+    monkeypatch.setattr(tempfile, "gettempdir", lambda: unwritable)
+    monkeypatch.setattr(tempfile, "tempdir", unwritable, raising=False)
+
+    agent = Agent(catalog)
+    agent.reset("s", {})
+    response = agent.respond("s", "I'm looking for Clothing Underwear. A key requirement is: 100% cotton.", 3, 10)
+    assert isinstance(response["recommendations"], list)
+
+
+def test_no_absolute_paths_baked_into_the_agent():
+    """The agent must locate everything relative to the catalog path it is
+    given. A path from this machine hard-coded anywhere would reproduce only
+    here."""
+    import pathlib
+    import re
+
+    # A drive letter is a single letter, not preceded by another alphanumeric,
+    # followed by : and a slash. The lookbehind is what keeps 'http://' from
+    # matching on 'p://' -- llm_rerank.py legitimately holds a localhost URL.
+    suspicious = re.compile(r"(?<![A-Za-z0-9])[A-Za-z]:[\\/]|/home/|/Users/")
+    for path in pathlib.Path("starter").glob("*.py"):
+        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            if line.lstrip().startswith("#"):
+                continue
+            assert not suspicious.search(line), f"{path}:{number} contains an absolute path"

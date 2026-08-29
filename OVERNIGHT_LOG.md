@@ -312,3 +312,48 @@ documented claims re-verify, `evaluator/` and `data/` untouched. Tool and
 generated-artefact only; no source changed.
 
 **Result: adopted.**
+
+---
+
+## Iteration 7 — does the submission actually reproduce?
+
+**Chosen because** the stated queue was finished, and of the remaining
+candidates this one carries a total-loss risk rather than a marginal one:
+`docs/submission_rules.md` says an unreproducible run **may be treated as
+invalid**. Nothing had ever tested it, and we now write disk caches a fresh
+grading environment will not have — 14 of them on this machine.
+
+**Method:** clean worktree at HEAD, all 14 caches moved aside, then the exact
+command the README gives.
+
+| | result |
+|---|---|
+| cold run, no caches | **0.953064** in 36.6 s |
+| second run, now warm | **0.953064** in 35.4 s |
+| 78 tests in the clean worktree | pass |
+| 17 documented claims in the clean worktree | verify |
+| system temp made unwritable | **0.953064** |
+
+**Reproduction is sound**, and the caches turn out to be worth ~1.3 s on a 36 s
+run — nearly nothing. They are an optimisation, never a dependency, and the
+unwritable-temp case degrades silently as intended.
+
+**Two regression tests added**, since both properties are easy to break later:
+
+- `test_works_when_the_temp_directory_is_unwritable` — a sandboxed grader may
+  have temp read-only; caches must never become load-bearing.
+- `test_no_absolute_paths_baked_into_the_agent` — a path from this machine in
+  `starter/` would reproduce only here.
+
+**The second test failed on its first run, and the failure was mine.** It
+flagged `starter/llm_rerank.py:35`, which is the localhost Ollama URL — my
+pattern matched `p://` inside `http://`. Then the fix was wrong too: a
+convoluted lookbehind let `D:\data` through undetected, which I only caught by
+probing the compiled pattern against eight cases rather than trusting a green
+test. A guard that silently fails to guard is worse than no guard. Final pattern
+is `(?<![A-Za-z0-9])[A-Za-z]:[\/]|/home/|/Users/`, verified against all eight.
+
+**Verified after:** 80 tests pass, clean 0.953064 / Hit@10 1.0000, all 17 claims
+re-verify, caches restored, worktree removed, `evaluator/` and `data/` untouched.
+
+**Result: adopted.**

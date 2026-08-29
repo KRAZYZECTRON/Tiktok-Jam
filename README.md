@@ -39,6 +39,14 @@ python -m evaluator.local_evaluator
 
 That single command is the whole reproduction. On Windows use `py` for `python`.
 
+**Verified cold.** From a clean checkout with every cache removed, that command
+produces **0.953064** in 36.6 s; a second, warm run produces the identical score
+in 35.4 s. The disk caches (an IDF table, and catalog embeddings if the optional
+dense route is enabled) are worth ~1.3 s and are never a correctness dependency
+— with the system temp directory made unwritable the agent still scores
+0.953064. A regression test covers that, because
+`docs/submission_rules.md` says an unreproducible run may be treated as invalid.
+
 ## How it works
 
 ```
