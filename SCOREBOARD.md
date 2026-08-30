@@ -663,9 +663,10 @@ looks like, which is what it was claimed to be.
    fractionally *higher* (0.953089 vs 0.953064) — noise, but it is certainly no
    longer earning its place.
 
-Neither was reverted overnight: doing so moves the score below the frozen
-0.953064 baseline, and the instruction for unsupervised work was to report
-rather than act. **These are decisions for a human.** The mechanism arguments
+**Resolved 31 Aug: both kept, on held-out evidence.** See the section above —
+the phrase bonus is exactly inert (+0.00008) and the category bonus costs a
+hit on unseen targets when removed. The stability table was right that they
+earn nothing on the public set and wrong to imply that settles it. The mechanism arguments
 for keeping them are that they cost nothing and may matter on the hidden 800
 where the post-fusion layer's assumptions could hold less well.
 
@@ -806,6 +807,50 @@ turned out to have been tested in the wrong form.
 This was rejected at 6.7% of scored turns on the public set and re-adopted at
 2.9% of held-out sessions — a *smaller* rate, on the set that actually predicts
 the hidden 800.
+
+## The two inert bonuses, finally tested where it counts
+
+`tools/stability.py` showed `BONUS_EXACT_PHRASE` and `BONUS_EXACT_CATEGORY`
+holding on both split-halves **0% of the time** and flagged them as candidates
+for removal — with the caveat, written at the time, that the decision needed a
+human because "they cost nothing and may matter on the hidden 800 where the
+post-fusion layer's assumptions could hold less well".
+
+Both have now been tested on the held-out draws, which is the closest thing we
+have to the hidden 800. Four seeds each, against the current pipeline with
+component matching on.
+
+| config | public | held-out mean | vs shipped | held-out Hit@10 by seed |
+|---|---|---|---|---|
+| **shipped** (250 / 40) | 0.953064 | **0.921214** | — | .985 / .985 / .985 / .980 |
+| `TJ_B_EXACT=0` | 0.953064 | 0.921295 | +0.00008 | .985 / .985 / .985 / .980 |
+| `TJ_B_EXACT_CAT=0` | **0.953214** | 0.920985 | −0.00023 | .985 / .985 / .985 / **.975** |
+| both 0 | 0.953014 | 0.921086 | −0.00013 | .985 / .985 / .985 / **.975** |
+
+**Decision: keep both.** Nothing here "clearly improves" — the whole spread is
+±0.00023, an order of magnitude below the +0.002 noise floor this project set
+for itself. Removing them is not measurably better and is measurably *not*
+better; there is no case for touching working code.
+
+**Two things worth recording anyway.**
+
+`BONUS_EXACT_PHRASE` is confirmed **exactly inert**: public identical to six
+decimal places, held-out +0.00008. It does nothing and it costs nothing. It
+stays only because "provably does nothing" is a weaker reason to delete code the
+week of a deadline than it sounds.
+
+`BONUS_EXACT_CATEGORY` is **not inert, and the public set says the opposite.**
+Removing it scores *higher* on public (0.953214 against 0.953064) — the reading
+that made it look like dead weight in the first place. On held-out it scores
+lower and, more decisively, **costs a hit on seed 4**: Hit@10 0.980 → 0.975,
+with both-zero showing the same drop. Hit@10 carries 0.50 weight; a term that
+buys a hit on unseen targets is not dead weight whatever the public set says.
+
+That makes this the second time tonight the public set pointed the wrong way on
+a decision, after component matching (invisible on public, +0.0023 held out).
+The pattern is now consistent enough to state plainly: **the public 200 is
+saturated, and on any question worth ±0.002 it is not merely uninformative but
+occasionally misleading.**
 
 ## Tested and rejected
 

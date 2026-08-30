@@ -1149,3 +1149,60 @@ Documentation only — no code changed this iteration, which is the correct
 outcome.
 
 **Result: rejected, recorded.** Queue item (9) complete.
+
+---
+
+## Iteration 20 — the two inert bonuses, decided on held-out
+
+**Chosen because** `stability.py` flagged both as candidates for removal weeks
+ago (0% both-halves) and explicitly deferred the call to a human, on the grounds
+that they might matter on the hidden 800. Held-out draws are the closest proxy
+we have, and nobody had run it.
+
+**A false start worth recording.** I launched three parallel held-out runs with
+`TJ_B_EXACT_PHRASE=0` and `TJ_B_EXACT_CATEGORY=0` — env var names I inferred
+from the constant names. The real gates are `TJ_B_EXACT` and `TJ_B_EXACT_CAT`.
+An unknown env var is silently ignored, so all three runs would have completed
+normally and reported the **default configuration** as if it were three
+experiments. I only caught it because a `grep` for the names I had just used
+returned nothing.
+
+That is the third silent failure tonight, and the same shape each time: the run
+succeeds, the number is plausible, and nothing indicates the experiment did not
+happen. Killed and re-run against the real names.
+
+**The measurement.** Four seeds each, current pipeline (component matching on).
+
+| config | public | held-out | vs shipped | held-out Hit@10 by seed |
+|---|---|---|---|---|
+| **shipped** | 0.953064 | **0.921214** | — | .985/.985/.985/.980 |
+| phrase = 0 | 0.953064 | 0.921295 | +0.00008 | .985/.985/.985/.980 |
+| category = 0 | **0.953214** | 0.920985 | −0.00023 | .985/.985/.985/**.975** |
+| both = 0 | 0.953014 | 0.921086 | −0.00013 | .985/.985/.985/**.975** |
+
+**Decision: keep both.** The rule was "do not remove unless held-out clearly
+improves". The entire spread is ±0.00023 — an order of magnitude under this
+project's own +0.002 noise floor. Nothing improves, clearly or otherwise.
+
+**The category bonus is not inert, and the public set said it was.** Removing it
+scores *higher* on public — 0.953214 against 0.953064 — which is exactly the
+reading that made it look like dead weight. On held-out it is lower, and it
+**costs a hit on seed 4** (Hit@10 0.980 → 0.975, reproduced in the both-zero
+row). Hit@10 carries 0.50 weight. A term that buys a hit on unseen targets is
+not dead weight however the public set scores it.
+
+The phrase bonus really is inert: identical to six decimals on public, +0.00008
+held out. It does nothing and costs nothing, which is not a strong enough reason
+to touch working code three days before a deadline.
+
+**Second time tonight the public set pointed the wrong way**, after component
+matching (invisible on public, +0.0023 held out). Stated plainly in SCOREBOARD:
+on any question worth ±0.002 the public 200 is not merely uninformative, it is
+occasionally misleading.
+
+**Verified after:** `main` unchanged at 0.953064 / Hit@10 1.0000, 167 tests
+pass, 21 claims re-verify. Documentation only — no code changed, which is again
+the correct outcome.
+
+**Result: both kept, recorded, and the stability table's open question closed.**
+Queue item (10) complete.
