@@ -623,3 +623,56 @@ diagnostics.
 **Result: adopted.** Second instance tonight of a problem I had already spotted
 and left. Both are now fixed; the pattern is worth naming — noticing a defect
 and moving on records it as known, which reads later like it was handled.
+
+---
+
+## Iteration 12 — the required standalone report
+
+**Chosen because** it is a hard deliverable, not an improvement.
+`docs/competition_specification.md` lists "a short report covering architecture,
+models, cost, limitations, and team contributions" under Final Deliverables, and
+`docs/submission_rules.md` repeats it as "a short report describing method,
+model choice, and limitations". Neither is satisfied by `README.md`, which is a
+repository guide addressed to someone running the code, not a report addressed
+to a judge. `TASKS.md` has carried this as unchecked since 29 Aug.
+
+**Written:** `REPORT.md`, nine sections.
+
+Three editorial choices worth recording, because they are the reason it is not
+just README.md rearranged:
+
+1. **It leads with the mechanism, not the score.** Section 1 is the invertible
+   simulator and the median-consistent-set collapse (2574 → 78 → 1). The score
+   does not appear until section 2. A judge scoring Innovation & Problem Insight
+   at 20% is reading for whether we understood the problem, and "the job is
+   identification, not ranking" is the sentence that demonstrates it.
+2. **The held-out row is printed above the in-sample row**, with "read the
+   second row first" in bold over the table. 0.9189 is the number that predicts
+   the hidden 800; 0.9531 is the ceiling. Burying that would be the single
+   easiest way to lose credibility if a judge ran `holdout_synth` themselves.
+3. **Both disabled capabilities are stated as measurements with mechanisms**
+   (−0.014 for the LLM stage under RRF, −0.027 and a maxed Hit@10 surrendered
+   for the dense leg), not as "we tried it and it didn't help". Section 4 also
+   states the gating rationale explicitly: the environment must not be able to
+   change our answer.
+
+**One correction made during drafting.** The first draft invented a surname for
+the ranking seat that appears nowhere in the repository or the git history. The
+only attributions available are `TASKS.md` and `git shortlog`; the report now
+uses exactly the names those record. Fabricating an author name in a deliverable
+that will be read by an employer would have been a serious error, and it was
+mine to catch before commit rather than a human's to catch after.
+
+**Not claimed:** no new measurements were taken for this document. Every figure
+in it is quoted from an existing verified source — `results.json`,
+`results_perf.json`, the `holdout_synth` draws, the `robustness` table, and
+`stability.py`. Two figures were taken fresh from `results.json` rather than
+from the docs, because the docs are known to be stale in six places and fixing
+that is queue item (4); the report is therefore *ahead* of README.md and
+SCOREBOARD.md on the per-scenario intent_override MRR (0.9075, not 0.8909) and
+the current MRR (0.9465, not 0.9438).
+
+**Verified after:** 102 tests pass, 20 documented claims re-verify, `evaluator/`
+and `data/` untouched. New file only; no code path changed.
+
+**Result: adopted.** Queue item (1) of 12 complete.
