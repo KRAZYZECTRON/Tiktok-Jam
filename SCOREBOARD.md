@@ -116,6 +116,37 @@ obvious suspect. The other two are:
 
 Neither failure was visible on the public 200, where the equivalents are 2 and 0.
 
+### Open candidate: `HOLD_UNTIL_TURN` 2 → 3 — measured, NOT adopted
+
+The EARLY diagnosis above predicts that the bound is set one turn too tight for
+targets the ranker has not been tuned on. Swept, and it agrees:
+
+| `HOLD_UNTIL_TURN` | public | seed 1 | seed 2 | seed 3 | held-out mean |
+|---|---|---|---|---|---|
+| **2** (shipped) | 0.953064 | 0.909297 | 0.922477 | 0.927484 | 0.919753 |
+| **3** | **0.953900** | 0.909209 | 0.926389 | 0.932195 | **0.922598** |
+| 4 | 0.953900 | 0.909209 | 0.922689 | 0.932195 | 0.921364 |
+
+Up on both sets, +0.0028 held-out and +0.0008 public, two of three draws clearly
+better and the third flat. Public plateaus across 3 and 4; held-out prefers 3.
+The mechanism is the arithmetic in the EARLY note — waiting is ~11:1 favourable
+whenever the extra turn narrows the set.
+
+**Not adopted, because the check that matters most did not finish.** The
+unbounded version of this same bet is what collapsed Hit@10 to 0.90, and a mean
+score hides exactly that: nothing above confirms Hit@10 stayed at 1.0000 on the
+public set, or what it did on the held-out draws, or that both split-halves
+agree. `HOLD_UNTIL_TURN` is also the parameter this file warns hardest about.
+Before anyone changes it, run:
+
+```bash
+py -m tools.verify_claims && py -m tools.robustness --seeds 3 && py -m tools.holdout_synth --seeds 3
+```
+
+and require Hit@10 1.0000 on the public set, no robustness level down more than
+0.01, and both split-halves positive. The numbers above are real and re-run;
+they are a reason to finish the check, not a reason to ship.
+
 ## Retired: the recall@500 "ceiling"
 
 An earlier version of this file said the 500-candidate pool capped Hit@10 at
