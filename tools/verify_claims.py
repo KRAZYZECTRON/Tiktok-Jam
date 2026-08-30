@@ -23,6 +23,7 @@ numbers are marked in SCOREBOARD as requiring those dependencies.
 from __future__ import annotations
 
 import argparse
+import pathlib
 import statistics
 import sys
 from collections import Counter, defaultdict
@@ -39,6 +40,41 @@ from evaluator.local_evaluator import (
 CATALOG = "data/catalog.jsonl"
 DATASET = "data/public_set.jsonl"
 
+
+# Literals that were true once and must not be presented as current state.
+# SCOREBOARD.md keeps history deliberately, so it is exempt where noted.
+SUPERSEDED = [
+    ("MRR 0.9438", "pre-fuzzy-tier MRR", ("SCOREBOARD.md",)),
+    ("score 0.9522", "pre-fuzzy-tier score", ("SCOREBOARD.md",)),
+    ("80 tests", "test count before the ranking suite landed", ()),
+    ("0.78 than 0.81", "hidden-set estimate superseded by holdout_synth", ()),
+]
+
+# A dated log records what was measured at the time. Rewriting it would be
+# falsifying it, so it is never scanned.
+DOC_SCAN_SKIP = {"OVERNIGHT_LOG.md"}
+
+
+def superseded_hits(filename: str, text: str) -> list[str]:
+    """Superseded literals presented as current, as 'file:line: ...' strings.
+
+    Markdown emphasis is stripped before matching. That is not cosmetic: the
+    first version of this scanner missed `MRR **0.9438**` entirely because it
+    compared against the raw line, and the gap was only found by deliberately
+    injecting drift and watching one of two planted figures slip through.
+    """
+    if filename in DOC_SCAN_SKIP:
+        return []
+    out = []
+    for literal, why, exempt in SUPERSEDED:
+        if filename in exempt:
+            continue
+        for i, raw in enumerate(text.splitlines(), 1):
+            if literal in raw.replace("*", "").replace("`", ""):
+                out.append(f"{filename}:{i}: superseded literal {literal!r} ({why})")
+    return out
+
+
 # claim -> (expected, tolerance). Tolerances are deliberately tight: these are
 # deterministic measurements, not estimates.
 CLAIMS: list[tuple[str, float, float]] = []
@@ -53,6 +89,11 @@ def check(label: str, actual: float, expected: float, tol: float, unit: str = ""
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--no-docs",
+        action="store_true",
+        help="skip the documentation-drift scan (it shells out to pytest --collect-only)",
+    )
     parser.add_argument("--slow", action="store_true", help="also check perf and memory")
     args = parser.parse_args()
 
@@ -190,8 +231,92 @@ def main() -> None:
             latencies.append((time.perf_counter() - started) * 1000)
         _, peak = tracemalloc.get_traced_memory()
         tracemalloc.stop()
-        check("peak memory (docs say ~735 MB)", peak / 1e6, 735, 120, "MB")
+        # 735 MB was wrong twice over and the docs now say so explicitly: it
+        # charged the evaluator's own 50k dict to us, and tracemalloc cannot see
+        # SQLite's C-heap FTS index at all. The documented figure is 235 MB RSS
+        # via GetProcessMemoryInfo. tracemalloc measures a different thing, so
+        # this check is a loose sanity bound, not the documented number.
+        check("tracemalloc peak (sanity bound, not the 235 MB RSS figure)", peak / 1e6, 200, 180, "MB")
         check("per-turn mean latency (docs say ~58 ms)", statistics.fmean(latencies), 58, 45, "ms")
+
+    # --- documentation drift -------------------------------------------------
+    # Every check above re-runs a measurement. None of them notice when a doc
+    # quotes a number nobody registered here -- which is how six figures went
+    # stale at once: the per-scenario intent_override MRR, two "Current main"
+    # lines, a pillar table row, a superseded hidden-set estimate, a test count,
+    # and a hold-back threshold that had moved 4 -> 3 in the code.
+    #
+    # So this scans the docs that make CURRENT-STATE claims and requires the live
+    # value to appear. OVERNIGHT_LOG.md is excluded on purpose: it is a dated
+    # log, and rewriting what a past entry measured would be falsifying it.
+    if not args.no_docs:
+        import re as _re
+        import subprocess as _sp
+
+        collected = _sp.run(
+            [sys.executable, "-m", "pytest", "tests/", "-q", "--collect-only"],
+            capture_output=True, text=True,
+        )
+        m = _re.search(r"(\d+) tests? collected", collected.stdout)
+        live_tests = int(m.group(1)) if m else -1
+
+        import starter.agent as _agent_mod
+
+        live = {
+            "score": f"{result['recommended_technical_score']:.6f}",
+            "mrr": f"{result['mrr']:.4f}",
+            "mttc": f"{result['mttc']:.3f}".rstrip("0").rstrip("."),
+            "io_mrr": f"{result['scenario_metrics']['intent_override']['mrr']:.4f}",
+            "tests": str(live_tests),
+            "min_disclosed": str(_agent_mod.MIN_DISCLOSED),
+            "claims": str(len(results)),
+        }
+
+        # (file, human description, regex that must match somewhere in the file)
+        required = [
+            ("README.md",   "headline technical score",      rf"{live['score']}"),
+            ("README.md",   "current MRR",                   rf"{live['mrr']}"),
+            ("README.md",   "test count",                    rf"{live['tests']} tests"),
+            ("REPORT.md",   "headline technical score",      rf"{live['score']}"),
+            ("REPORT.md",   "current MRR",                   rf"{live['mrr']}"),
+            ("REPORT.md",   "intent_override MRR",           rf"{live['io_mrr']}"),
+            ("REPORT.md",   "test count",                    rf"{live['tests']} tests"),
+            ("DEVPOST.md",  "headline technical score",      rf"{live['score']}"),
+            ("DEVPOST.md",  "current MRR",                   rf"{live['mrr']}"),
+            ("SCOREBOARD.md", "intent_override MRR",         rf"{live['io_mrr']}"),
+            ("AGENTS.md",   "current-main score",            rf"{live['score']}"),
+            ("CLAUDE.md",   "current-main score",            rf"{live['score']}"),
+            ("TASKS.md",    "current-main score",            rf"{live['score']}"),
+            ("TASKS.md",    "current MRR",                   rf"{live['mrr']}"),
+        ]
+
+        doc_failures = []
+        for fname, what, pattern in required:
+            path = pathlib.Path(fname)
+            if not path.exists():
+                doc_failures.append(f"{fname}: missing, cannot check {what}")
+                continue
+            if not _re.search(pattern, path.read_text(encoding="utf-8")):
+                doc_failures.append(f"{fname}: {what} -- expected /{pattern}/, not found")
+
+        for path in sorted(pathlib.Path(".").glob("*.md")):
+            doc_failures.extend(
+                superseded_hits(path.name, path.read_text(encoding="utf-8"))
+            )
+
+        print()
+        if doc_failures:
+            print(f"documentation drift -- {len(doc_failures)} problem(s):")
+            for f in doc_failures:
+                print(f"  {f}")
+        else:
+            print(
+                f"documentation scan clean: {len(required)} current-state claims "
+                f"match the live run, no superseded literals presented as current."
+            )
+        results.append(
+            ("documentation free of drift", "", len(doc_failures), 0, not doc_failures)
+        )
 
     # --- report -------------------------------------------------------------
     width = max(len(label) for label, *_ in results)

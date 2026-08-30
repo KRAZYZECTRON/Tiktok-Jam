@@ -132,7 +132,7 @@ scale-free, so neither side needs calibrating against the other.
 ## Disclosures
 
 - **On turns 1-2 the agent asks its clarification question without returning a
-  list**, until four constraints are disclosed; from turn 3 it always answers.
+  list**, until three constraints are disclosed; from turn 3 it always answers.
   The spec lists asking-without-recommending as a standalone turn shape, and the
   agent emits a real question in `message`. Worth +0.041. `TJ_MIN_DISCLOSED=0`
   disables it (0.8712 without).
@@ -146,7 +146,8 @@ scale-free, so neither side needs calibrating against the other.
   covers only the fusion and weight choices — its labels were corrected once they
   were found to overstate that scope.) The gain holds on both halves but
   unevenly (+0.083 / +0.013 for the tuned weights; +0.013 / +0.023 for the
-  structural change). Expect the hidden set nearer 0.78 than 0.81.
+  structural change). `tools/holdout_synth.py` supersedes both for predicting
+  the hidden 800: **expect 0.9189**, not 0.9531. See the Result table.
 - **An optional local-LLM re-ranking stage exists** (`starter/llm_rerank.py`,
   Ollama + qwen2.5:7b-instruct) but is **off by default and not part of the
   reported score**, because official scoring may run offline. It degrades to
@@ -203,7 +204,7 @@ path. It cannot fail an offline run.
 | **II. Proactive guidance / cutoff on over-generality** | `agent.py`, `ranking.py::rank` | `rank()` reports how many pooled candidates remain consistent with everything disclosed. While that set is large the agent **withholds the list and returns a clarification question instead** — a literal retrieval cutoff under candidate-pool overload |
 | **III. Personalized context distillation** | `profile.py`, `dialog.py` | **Short-term:** each turn distils the reply into typed slots and a composed retrieval query. **Long-term:** `ProfileMemory` lives on the Agent, not the session, and accumulates across sessions sharing a profile signature — real here, since the harness builds one Agent and the 200 sessions hold only 125 distinct profiles |
 | **III. Adaptive orchestration / runtime re-orchestration** | `orchestrate.py` | An explicit per-turn policy selecting **CLARIFY** (ask, return nothing), **IDENTIFY** (answer from the head) or **EXPLORE** (answer from a deeper page), from measured state. The choice and its reason are recorded on the state — see `py -m tools.context_demo` |
-| **IV. Coverage / Precision / Efficiency** | `evaluator/` | Hit@10 1.0000 · MRR 0.9438 · MTTC 2.55 |
+| **IV. Coverage / Precision / Efficiency** | `evaluator/` | Hit@10 1.0000 · MRR 0.9465 · MTTC 2.545 |
 
 ### Seeing pillars II and III actually happen
 
@@ -397,7 +398,7 @@ Robustness here was free rather than profitable, which is the honest claim.
 | `starter/orchestrate.py` | CLARIFY / IDENTIFY / EXPLORE — which workflow this turn runs, and why |
 | `starter/profile.py` | profile distillation and cross-session memory |
 | `starter/llm_rerank.py` | optional LLM stage, off by default |
-| `tests/` | 80 tests; `py -m pytest tests/ -q` |
+| `tests/` | 114 tests; `py -m pytest tests/ -q` |
 | `tools/verify_claims.py` | re-runs every number the docs assert; exits non-zero on drift |
 | `tools/holdout_synth.py` | scores on catalog products the tuning never saw |
 | `tools/robustness.py` | seven perturbation styles, multi-seed |

@@ -36,13 +36,13 @@ nobody re-ran; the rows either side of it are confirmed, so it is bracketed.
 | boundary | 10 | 1.0000 | 1.0000 | 3.10 |
 | browsing | 80 | 1.0000 | 0.9646 | 2.56 |
 | buying | 80 | 1.0000 | 0.9358 | 2.05 |
-| intent_override | 30 | 1.0000 | 0.8909 | 3.63 |
+| intent_override | 30 | 1.0000 | 0.9075 | 3.63 |
 
 **Zero misses.** All 200 public sessions hit, in every scenario.
 
-Hit@10 is maxed, so only MRR (0.9438, 30% weight) and efficiency
-(0.8455, 20% weight) can still move. 180 of the 200 hits land at
-rank 1; the remaining 20 cost 0.0169 of score and are overwhelmingly cases where
+Hit@10 is maxed, so only MRR (0.9465, 30% weight) and efficiency
+(0.8455, 20% weight) can still move. 183 of the 200 hits land at
+rank 1; the remaining 17 cost 0.0160 of score and are overwhelmingly cases where
 every rival is equally consistent with everything the shopper disclosed.
 
 Much of the MTTC gap is structural rather than addressable: all 30
@@ -369,7 +369,13 @@ adopted.
 Not a hunch — the two measurements meet:
 
 - The disclosed constraints **uniquely identify the target in 147 of 200** sessions.
-- The shipped agent puts the target **at rank 1 in 157 of 200**.
+- The shipped agent puts the target **at rank 1 in 183 of 200**.
+
+*(The rank-1 count was 157 when this section was written, against 43 remaining
+sessions. Both figures moved as the post-fusion layer landed; the argument is
+unchanged and in fact stronger, since the gap between 147 and 183 is now wider.
+The paragraph below still describes the 43-session era and is kept for the
+reasoning, not the count — the current breakdown is at the end of this file.)*
 
 We are already ranking first *more often than the evidence uniquely determines*,
 by leaning on category, phrase and BM25 signal where the card is ambiguous. The

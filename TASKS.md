@@ -1,87 +1,80 @@
 # TASKS
 
-`main` — Hit@10 **1.0000** · MRR 0.6406 · MTTC 2.465 · **score 0.8629**
-(baseline was 0.1067). Full history and caveats in `SCOREBOARD.md`.
+`main` — Hit@10 **1.0000** · MRR **0.9465** · MTTC **2.545** · **score 0.953064**
+(kit baseline was 0.1067). Held out on targets never tuned on: **0.9189**.
+
+**Treat 0.9189 as the expectation for the hidden 800 and 0.953064 as the
+ceiling.** Full history, every intermediate measurement, and the retired claims
+are in `SCOREBOARD.md`.
 
 | Task | Owner(s) | Branch | Status |
 |------|----------|--------|--------|
-| Ranking | Vishwak | main | ✅ merged — stage A + RRF fusion |
-| Dialog | YY + Tanush | merged | ✅ merged — accumulated query, `ask_attribute`, rotation |
-| Retrieval | Chetan | `retrieval` | ❌ **not merging — measured, see below** |
+| Ranking | Vishwak | main | ✅ merged — stage A, RRF fusion, post-fusion identification layer |
+| Dialog | Zou Yuyang + Bhao Tanush | merged | ✅ merged — accumulated query, `ask_attribute`, override erasure, rotation |
+| Retrieval | Chetan | merged | ✅ intent routing merged and active; dense leg merged but **shipped off** |
 
-## Retrieval: pending a decision, not pending work
+## Submission deliverables
 
-Chetan's hybrid BM25 + dense branch is finished and merges cleanly into current
-`main`. It is unmerged because two things changed underneath it:
+| | Status |
+|---|---|
+| Public GitHub repository | ⚠️ **repo must be set to public before submitting** |
+| `README.md` — setup, Python version, one run command, disclosures | ✅ |
+| `REPORT.md` — the required standalone report | ✅ |
+| `DEVPOST.md` — Devpost description text | ✅ drafted, needs pasting into Devpost |
+| `DEMO_SCRIPT.md` — shot list for the video | ✅ drafted |
+| **Demo video recorded and uploaded** | ❌ **human required** — YouTube, **public**, linked on Devpost |
+| Latency / token / cost disclosure | ✅ `tools/perf.py` |
+| Architecture diagram | ✅ ASCII in `README.md` and `REPORT.md`; designed SVG for Devpost still open |
+| Devpost + Registration Form both submitted | ❌ **human required** |
 
-1. **It was built against a 0.205 pipeline.** Its tuning constants assume
-   `retrieve()` is called on the raw turn message. `dialog.py` now passes a
-   composed `state.query`, which is a different input distribution.
-2. **Its premise is undercut.** The dense leg exists to close a paraphrase gap
-   between what the shopper says and how the product is described. But the
-   simulated shopper discloses constraints as *verbatim strings from the target
-   product's own `features` field* — so on the public set there is no paraphrase
-   gap for embeddings to close.
+## Where the remaining score actually is
 
-Against that, merging it costs the thing `main` currently has for free: it is
-**pure stdlib**, and official scoring may run offline and CPU-only. Adding
-`numpy` + `torch` + a HuggingFace download trades a real robustness advantage
-for a benefit nobody has yet measured on the current pipeline.
+Hit@10 is **1.0000 and cannot improve**, and the public 200 are saturated — every
+tunable was chosen with all 200 targets visible, so public gains are close to
+meaningless now. **Judge everything on `tools/holdout_synth.py`.**
 
-**Measured, and the answer is no.** Merged onto `main` and scored, dense leg
-absent (which is exactly the offline-grading case): **0.807951 against 0.810768**
-— a slight regression, before the later improvements took `main` to 0.862880.
+Ranked by measured value:
 
-The decisive evidence arrived afterwards. `tools/attribution.py` now reports
-**MISS_RETRIEVAL = 0**: the existing BM25 pool contains the target in all 200
-sessions, and Hit@10 is **1.0000**. There is no retrieval failure left for a
-dense leg to fix. Merging it would trade the pure-stdlib property — our immunity
-to an offline, CPU-only grading run — for a measured negative.
+| opportunity | size | note |
+|---|---|---|
+| Paraphrase / truncation robustness | **0.063 at risk** | Truncated input scores 0.8553, paraphrase 0.8906. The spec says paraphrasing *may* be added. Insurance, not expected gain. |
+| The **EXTRACT** failure class | ~**+0.014** held-out | 50 of 148 unseen non-rank-1 sessions had a card that uniquely identifies the target. Defects, not ties. Both card tiers are conjunctive, so one mis-extraction empties the set. |
+| `HOLD_UNTIL_TURN` 2 → 3 | +0.0028 held-out | Measured, **not adopted** — the Hit@10 confirmation never finished. Gate is specified in `SCOREBOARD.md`. |
+| Retire the two inert bonus terms | ~0 | `BONUS_EXACT_PHRASE` and `BONUS_EXACT_CATEGORY` are inert on public (0% of splits). Untested on held-out. |
 
-**This is a real result, not a wasted seat**, and it belongs in the writeup: a
-hybrid dense retriever was built, evaluated, and rejected on evidence. The
-branch stays for that purpose.
+Two Innovation Directions named in the spec are **unbuilt**: question-value
+estimation, and transparent recommendation explanations. Neither moves the
+score; both are scored under Innovation & Problem Insight (20%).
 
-Known issues to fix first if it does merge:
-- `import numpy as np` is unguarded at module top — a missing numpy kills the
-  whole agent at import instead of degrading. The `sentence_transformers`
-  import is correctly wrapped; numpy is not.
-- The 50k-document encode has no disk cache, so it re-embeds the entire catalog
-  on every process start. Real risk under a grading timeout.
-- `results_retrieval.json` (1641 lines) is committed. `.gitignore` covers
-  `results_*.json` now but will not untrack it — needs `git rm --cached`.
+**Read the rejected table in `SCOREBOARD.md` before trying anything.** Fourteen
+plausible ideas are already disproved there with numbers, including several that
+sound obviously right.
 
-## Remaining work
+## Retrieval: resolved
 
-**Verification** — all done
-- [x] `tools/attribution.py` rewritten to drive the real `Agent`
-- [x] `RANK_USE_LLM=1` re-tested after RRF — **regression (−0.014), stays off**
-- [x] `tools/holdout_check.py` re-run — both halves reach Hit@10 1.0000,
-      deltas +0.0466 / +0.0460
+Chetan's hybrid branch is merged. The Buying/Browsing routing it brings is
+active and part of the shipped path. The **dense leg is opt-in (`TJ_DENSE=1`)
+and stays off**: 0.9254 against 0.9522 when measured, it surrenders a maxed
+Hit@10, and it costs 21.8 s of model load plus 774.6 s to embed 50k products on
+CPU.
 
-**Submission packaging**
-- [x] `requirements.txt` — no runtime dependencies
-- [x] `README.md` — setup, Python version, one run command, disclosures
-- [x] Latency / token / cost disclosure — measured via `tools/perf.py`
-- [x] Architecture diagram — ASCII in `README.md` (a designed version for
-      Devpost is still worth doing)
-- [ ] Devpost description · demo video · the report — Vishwak
+The mechanism is specific and checkable: the shopper's constraints are verbatim
+strings from the target's own `features` field, so there is no paraphrase gap
+for embeddings to close, and their semantic neighbours displace exact matches.
+`tools/attribution.py` independently confirms `MISS_RETRIEVAL = 0` — the BM25
+pool contains the target in all 200 sessions, so there is no retrieval failure
+left for a dense leg to fix.
 
-**Open**
-- Hit@10 is **1.0000 and cannot improve**. Only MRR (0.6406, 30% weight) and
-  MTTC (2.465 → efficiency 0.8535, 20% weight) can still move, worth about
-  +0.11 and +0.029 respectively at their theoretical limits.
-- Roughly 100 of 200 hits land at rank 1; the rest spread over ranks 2-10. All
-  remaining headroom is in telling near-identical clothing items apart. The
-  cheap tuning levers are exhausted — see the rejected table in `SCOREBOARD.md`
-  before trying anything, several plausible ideas are already disproved.
-
-**The offline question is now moot for scoring** — `main` is pure stdlib, calls
-no model and opens no socket, so it is unaffected either way. Still worth
-confirming for the writeup.
+**This is a result, not a wasted seat**, and it is in the writeup as one.
 
 ## Standing rules
 
-`evaluator/` and `data/` are read-only. Never two people on one file at once.
-Only Seat 1 merges to `main`, and never without a green full-200 run. Every
-merge appends a row to `SCOREBOARD.md`.
+- `evaluator/` and `data/` are **read-only**.
+- Never two people on one file at once.
+- Only Seat 1 merges to `main`, and never without a green full-200 run.
+- Every merge appends a row to `SCOREBOARD.md`.
+- `main` is **pure stdlib** — no third-party import on the scored path, no
+  socket. Official scoring may run offline, CPU-only, under a timeout. Anything
+  that changes that must justify itself against this constraint.
+- Before any commit: `py -m pytest tests/ -q` and `py -m tools.verify_claims`
+  must both be green.

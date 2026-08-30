@@ -785,3 +785,69 @@ changed since. `evaluator/` and `data/` untouched.
 
 **Result: adopted.** Queue item (3) of 12 complete — all three hard deliverables
 now drafted. Next is the staleness sweep, which now has seven known entries.
+
+---
+
+## Iteration 15 — the staleness sweep, and making it the last one
+
+**Chosen because** this project's headline claim is that every number in it is
+measured. Six figures were stale simultaneously, which does more damage here
+than in a repo that never made the claim.
+
+**Fixed, nine sites:**
+
+| where | was | now |
+|---|---|---|
+| `SCOREBOARD.md` per-scenario table | intent_override MRR 0.8909 | 0.9075 |
+| `SCOREBOARD.md` headline | MRR 0.9438, 180 at rank 1, 20 costing 0.0169 | 0.9465, 183, 17 costing 0.0160 |
+| `SCOREBOARD.md` ceiling section | "rank 1 in 157 of 200" | 183, with the stage marked |
+| `AGENTS.md` / `CLAUDE.md` "Current main" | MRR 0.9438 · score 0.9522 | 0.9465 · 0.953064, plus the held-out 0.9189 |
+| `README.md` pillar IV row | MRR 0.9438 · MTTC 2.55 | 0.9465 · 2.545 |
+| `README.md` disclosures | "until four constraints are disclosed" | three — `MIN_DISCLOSED` moved 4→3 on 29 Aug |
+| `README.md` disclosures | "expect the hidden set nearer 0.78 than 0.81" | expect 0.9189, per `holdout_synth` |
+| `README.md` repo map | 80 tests | 114 |
+| `TASKS.md` | score 0.8629 / MRR 0.6406, ~14 merges behind | rewritten against current `main` |
+
+`OVERNIGHT_LOG.md`'s own historical entries were **not** touched. A dated log
+records what was measured at the time; editing it would be falsifying it.
+
+**The durable part: `verify_claims.py` now scans the docs.**
+
+Every existing check re-runs a measurement. None of them could notice a doc
+quoting a number nobody had registered — which is exactly how six figures went
+stale at once. The new scan asserts 14 current-state claims against the live
+run and flags superseded literals presented as current. `--no-docs` skips it.
+
+**The scanner shipped broken, and the only reason I know is that I tried to
+break it.** After it came up green I injected two stale figures into `TASKS.md`
+to prove it could fail. It caught `score 0.9522` and **missed `MRR **0.9438**`**
+— it was matching against the raw markdown line, and the emphasis asterisks
+between "MRR" and the number defeated the substring test. Had I trusted the
+green run, the sweep would have shipped with a drift check that silently ignored
+every bolded figure in the repo, which is most of them.
+
+Fixed by stripping `*` and `` ` `` before matching. That is now pinned by
+`tests/test_verify_docs.py`, which parametrises five emphasis styles, and the
+matcher was extracted to a module-level `superseded_hits()` so it is testable at
+all rather than buried in `main()`. Twelve new tests, 102 → 114.
+
+**A check that cannot fail is worse than no check**, because it gets quoted as
+evidence. This one has now demonstrably failed once, on purpose.
+
+**Second-order effect worth noting:** adding those 12 tests changed the live
+test count, and the new scanner immediately failed the run by flagging four docs
+still saying "102 tests". It caught a drift I had created thirty seconds
+earlier. That is the tool working.
+
+**Also corrected:** `verify_claims --slow` still asserted "peak memory (docs say
+~735 MB)" — a figure the docs themselves now describe as wrong twice over. It
+compared `tracemalloc` output against an RSS number measured a different way, so
+it was never really checking the documented claim. Relabelled as the loose
+sanity bound it actually is.
+
+**Verified after:** 114 tests pass, **21** documented claims re-verify (the doc
+scan is now one of them), clean 0.953064 / Hit@10 1.0000, `evaluator/` and
+`data/` untouched.
+
+**Result: adopted.** Queue item (4) of 12 complete; all four bounded deliverables
+are done.

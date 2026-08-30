@@ -182,14 +182,14 @@ This shot is why the video is worth watching. Do not cut it for time.
 ### Shot 6 — close · 2:45–3:00 · 15 s
 
 **On screen:** split or quick cuts — `requirements.txt` (no runtime
-dependencies), then `py -m pytest tests/ -q` typed live (0.9 s, 102 passed).
+dependencies), then `py -m pytest tests/ -q` typed live (0.9 s, 114 passed).
 
 > "No LLM on the scored path. Zero tokens, zero dollars, no network socket — we
 > built an LLM re-ranker and a vector retriever, measured both, and shipped both
 > **disabled**, because each one made the score worse. It's pure standard
 > library, so it cannot fail an offline, CPU-only grading run.
 >
-> 102 tests. Every number in our docs re-verified by a tool that fails the build
+> 114 tests. Every number in our docs re-verified by a tool that fails the build
 > if any of them drift."
 
 **Final card:** `github.com/KRAZYZECTRON/Tiktok-Jam` · `0.9531 public ·

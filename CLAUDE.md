@@ -140,7 +140,9 @@ def rank(candidates: list[Candidate], state: DialogState) -> list[Candidate]:
 main — integration, Seat 1 only · retrieval — Seat 2 · dialog — Seat 3
 
 ## Where we are
-Current `main`: **Hit@10 1.0000 · MRR 0.9438 · MTTC 2.55 · score 0.9522**.
+Current `main`: **Hit@10 1.0000 · MRR 0.9465 · MTTC 2.545 · score 0.953064**.
+Held out on targets never tuned on: **0.9189** (four draws). That is the
+number that predicts the hidden 800; treat 0.953064 as the ceiling.
 The kit's shipped baseline was 0.1250 / 0.0680 / 9.81 / 0.1067.
 
 Per-scenario and the full history are in `SCOREBOARD.md`, which also records

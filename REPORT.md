@@ -280,7 +280,7 @@ claim is itself automated:
 
 | | |
 |---|---|
-| `py -m pytest tests/ -q` | **102 tests**, 0.2 s |
+| `py -m pytest tests/ -q` | **114 tests**, 0.2 s |
 | `py -m tools.verify_claims` | re-runs **20 documented claims** against a fresh evaluation; exits non-zero on drift |
 | `py -m tools.stability` | 200 random split-halves per shipped choice |
 | `py -m tools.holdout_synth` | scores on catalog targets the tuning never saw |
