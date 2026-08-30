@@ -88,6 +88,8 @@ python -m evaluator.local_evaluator
 
 ## 3. Architecture
 
+![Architecture](docs/architecture.png)
+
 ```
  turn message
       │

@@ -58,6 +58,10 @@ dense route is enabled) are worth ~1.3 s and are never a correctness dependency
 
 ## How it works
 
+![Architecture](docs/architecture.png)
+
+*Source: [`docs/architecture.svg`](docs/architecture.svg). Regenerate the PNG with the command in `docs/architecture.svg`'s companion note in `DEMO_SCRIPT.md`.*
+
 ```
                  ┌─────────────────────────────────────────┐
    turn message  │  update_state()      starter/dialog.py   │

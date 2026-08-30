@@ -73,8 +73,8 @@ baseline row.
 
 ### Shot 2 — the insight · 0:20–0:50 · 30 s
 
-**On screen:** the consistent-set table. Either the one in `REPORT.md` §1 or a
-title card:
+**On screen:** `docs/architecture.png` — the collapse table is the middle-left
+panel. Zoom into it, or use the plain title card below:
 
 ```
 constraints disclosed  │  median products still consistent

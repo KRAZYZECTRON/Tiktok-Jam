@@ -1206,3 +1206,45 @@ the correct outcome.
 
 **Result: both kept, recorded, and the stability table's open question closed.**
 Queue item (10) complete.
+
+---
+
+## Iteration 21 — the architecture diagram
+
+**Chosen because** it was the last unbuilt item on the task board before the
+final pass — `TASKS.md` has carried "a designed version for Devpost is still
+worth doing" since 29 Aug — and it is the only asset a judge sees before reading
+a single word.
+
+**Built:** `docs/architecture.svg`, hand-written, no dependencies, plus
+`docs/architecture.png` (1200x780, 124 KB) rendered from it. Devpost's uploader
+takes raster formats, so the PNG is the deliverable and the SVG is the source;
+the regeneration command is recorded in `DEVPOST.md` so the numbers cannot drift
+away from a file nobody can rebuild.
+
+**What it shows, and what it deliberately does not.** Four panels: the per-turn
+pipeline, the invertible-simulator collapse (2,574 -> 78 -> 1), the three
+decisions carrying +0.111 of the +0.115 margin, and the four capabilities built
+and shipped disabled with their costs. The header carries both scores side by
+side, and a dark strip along the bottom says **read the held-out number first**.
+
+The temptation was to make it a picture of the pipeline. A pipeline diagram
+shows that we built a system; it does not show that we understood the problem,
+and Innovation & Problem Insight plus Impact are 40% between them against
+Technical Execution's 35%. So the pipeline is one column on the left and the
+*reasoning* takes the other two thirds.
+
+**Verified by looking at it, not by trusting the markup.** Rendered in the
+browser pane and inspected before converting, then the PNG re-opened and read.
+Both are correct including the footer, which the pane had cropped — an SVG that
+compiles is not an SVG that renders.
+
+Linked from `README.md`, `REPORT.md` and `DEVPOST.md`, and `DEMO_SCRIPT.md`
+shot 2 now names it as the on-screen asset instead of describing a title card
+that did not exist.
+
+**Verified after:** 167 tests pass, 21 documented claims re-verify, public
+0.953064 / Hit@10 1.0000, `evaluator/` and `data/` untouched. Assets and docs
+only.
+
+**Result: adopted.** Queue item (11) complete. Only the final pass remains.

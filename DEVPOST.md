@@ -113,6 +113,16 @@ consistent, and which strategy was chosen and why. On that session the agent
 runs CLARIFY at 203 consistent candidates, switches to IDENTIFY at 18, and on
 turn 3 the shopper's override erases the earlier `feature` slot.
 
+## Gallery image
+
+Upload **`docs/architecture.png`** (1200x780) as the submission's primary image.
+Devpost's uploader takes raster formats; `docs/architecture.svg` is the source.
+Regenerate after any change to the numbers:
+
+```bash
+"/c/Program Files/Google/Chrome/Application/chrome.exe" --headless --disable-gpu \n  --screenshot=docs/architecture.png --window-size=1200,780 \n  --default-background-color=FFFFFFFF --hide-scrollbars docs/architecture.svg
+```
+
 ## How we built it
 
 ```
