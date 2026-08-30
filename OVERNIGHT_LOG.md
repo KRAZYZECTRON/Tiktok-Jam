@@ -724,3 +724,64 @@ as Hit@10. If a judge is going to find that, they should find it in our own text
 and `data/` untouched. New file only; no code path changed.
 
 **Result: adopted.** Queue item (2) of 12 complete.
+
+---
+
+## Iteration 14 — the demo video script, and a finding that changed it
+
+**Chosen because** it is the third and last hard deliverable, and the only one
+that cannot be finished without a human. Getting it wrong wastes someone's
+recording session rather than just costing a document.
+
+**The finding that shaped the whole script: four of the six tools we would want
+to show are too slow to film, and I only know that because I timed them instead
+of assuming.**
+
+| command | measured tonight |
+|---|---|
+| `tools.context_demo --sample public_0002` | **6.4 s** |
+| `pytest tests/ -q` | **0.9 s** |
+| `evaluator.local_evaluator` | **34.7 s** |
+| `tools.holdout_synth --seeds 1` | 68.3 s |
+| `tools.stability` | **273 s** |
+| `tools.verify_claims` | **378 s** |
+
+`stability` and `verify_claims` are 4.5 and 6.3 minutes. A three-minute video
+cannot contain either. Worse, **neither writes its output to a file** — both
+print to stdout only — so they cannot even be `cat`-ed on camera without a prep
+step that captures them first. The script now opens with that prep step and a
+table saying explicitly which shots are live and which are pre-captured.
+
+Had the script been written from the queue item as given, it would have told a
+human to run `py -m tools.stability` on camera and they would have discovered
+the 4.5-minute wait with the recorder running.
+
+**Structure.** Six shots. The two that must never be cut are named as such:
+
+- **Shot 3** (`context_demo`, live, 6.4 s runtime / 50 s of screen time) is the
+  only place the system is visibly *reasoning* rather than scoring — 203
+  consistent candidates and a refusal to guess, the collapse to 18, and the
+  turn-3 override erasing the `feature` slot while both `material` slots
+  survive. Re-verified against live output tonight before writing the narration.
+- **Shot 5** is the held-out 0.9189 and the `LIKELY LUCK` rows from
+  `stability.txt`. Almost every submission will show a score; very few will show
+  the number they think is actually true and the three tunables that did not
+  survive scrutiny.
+
+The evaluator shot is marked **speed-ramp, do not cut away** — 34.7 s of real
+wait compressed in the edit rather than hidden behind a jump cut, because the
+unbroken take is the evidence.
+
+**Also written:** a 90-second cut-down, an explicit cut-order for overruns, and
+an upload checklist (the deliverable says *public*, not unlisted, which is an
+easy way to fail a requirement while believing it is met).
+
+**Housekeeping:** `demo_capture/` added to `.gitignore` — the prep step writes
+three files there and they are scratch.
+
+**Verified after:** 102 tests pass; `tools.verify_claims` ran green this
+iteration (378 s, rc=0, 20/20) during the timing measurements and no code has
+changed since. `evaluator/` and `data/` untouched.
+
+**Result: adopted.** Queue item (3) of 12 complete — all three hard deliverables
+now drafted. Next is the staleness sweep, which now has seven known entries.
