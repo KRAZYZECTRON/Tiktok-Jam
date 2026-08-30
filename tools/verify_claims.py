@@ -111,15 +111,20 @@ def main() -> None:
           sizes[len(sizes) // 2], 1, 0, "products")
 
     # --- simcard fidelity: the mechanism everything rests on ----------------
+    # Checked over the WHOLE catalog, not the 200 public targets. Those 200 are
+    # the products the ranking was tuned against, so agreement on them says
+    # nothing about the hidden 800 -- whose targets are drawn from the other
+    # 49,800. This is the claim `tools/holdout_synth.py` depends on to be able
+    # to synthesise a valid session for any product at all.
     mismatches = 0
-    for sample in samples:
-        product = products[str(sample["ground_truth"]["parent_asin"])]
+    for product in products.values():
         card = intent_card(product)
         theirs = {str(v).lower() for v in card["hard_constraints"] + card["soft_preferences"]}
         if not theirs <= set(card_slots(product)):
             mismatches += 1
-    check("simcard reconstruction mismatches vs the evaluator (must be 0)",
-          mismatches, 0, 0, "sessions")
+    check("simcard reconstruction mismatches across the whole catalog (must be 0)",
+          mismatches, 0, 0, "products")
+    check("...products actually checked (docs say all 50,000)", len(products), 50000, 0, "products")
 
     # --- the hold-back cliff, quoted in three places ------------------------
     import starter.agent as agent_mod

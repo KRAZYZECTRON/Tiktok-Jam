@@ -371,9 +371,20 @@ Robustness here was free rather than profitable, which is the honest claim.
 
 | path | what |
 |------|------|
-| `starter/` | the agent — `agent.py`, `dialog.py`, `retrieval.py`, `ranking.py`, `state.py` |
+| `starter/agent.py` | the orchestrator, and every tuned threshold with its measurement |
+| `starter/dialog.py` | slot accumulation, override erasure, choosing what to ask next |
+| `starter/retrieval.py` | intent-routed BM25 pool; optional dense leg, off by default |
+| `starter/ranking.py` | scoring and fusion — the largest module, and where the score lives |
+| `starter/simcard.py` | reconstruction of the simulator's intent card, exact on all 50,000 products |
+| `starter/orchestrate.py` | CLARIFY / IDENTIFY / EXPLORE — which workflow this turn runs, and why |
+| `starter/profile.py` | profile distillation and cross-session memory |
 | `starter/llm_rerank.py` | optional LLM stage, off by default |
-| `tools/` | diagnostics: `attribution.py`, `holdout_check.py`, `rank_sweep.py`, `rank_probe.py`, `quick_eval.py` |
+| `tests/` | 80 tests; `py -m pytest tests/ -q` |
+| `tools/verify_claims.py` | re-runs every number the docs assert; exits non-zero on drift |
+| `tools/holdout_synth.py` | scores on catalog products the tuning never saw |
+| `tools/robustness.py` | seven perturbation styles, multi-seed |
+| `tools/stability.py` | repeated random split-halves — which tunables were luck |
+| `tools/` (rest) | `attribution.py`, `demo_transcripts.py`, `context_demo.py`, `perf.py`, `holdout_check.py`, `rank_sweep.py`, `rank_probe.py`, `quick_eval.py` |
 | `SCOREBOARD.md` | every measurement, including retired claims |
 | `NOTES_*.md` | per-seat working logs — what was tried and why |
 | `evaluator/`, `data/` | organizer-supplied, unmodified |
