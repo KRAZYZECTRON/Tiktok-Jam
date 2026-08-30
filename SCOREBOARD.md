@@ -117,36 +117,80 @@ obvious suspect. The other two are:
 
 Neither failure was visible on the public 200, where the equivalents are 2 and 0.
 
-### Open candidate: `HOLD_UNTIL_TURN` 2 → 3 — measured, NOT adopted
+### Closed: `HOLD_UNTIL_TURN` 2 → 3 — the gate ran, and it refused
 
-The EARLY diagnosis above predicts that the bound is set one turn too tight for
-targets the ranker has not been tuned on. Swept, and it agrees:
+**Status: REJECTED on 31 Aug. The check that had never finished is the one that
+settles it, and it settles it against.**
 
-| `HOLD_UNTIL_TURN` | public | seed 1 | seed 2 | seed 3 | held-out mean |
-|---|---|---|---|---|---|
-| **2** (shipped) | 0.953064 | 0.909297 | 0.922477 | 0.927484 | 0.919753 |
-| **3** | **0.953900** | 0.909209 | 0.926389 | 0.932195 | **0.922598** |
-| 4 | 0.953900 | 0.909209 | 0.922689 | 0.932195 | 0.921364 |
+This entry previously read "measured, NOT adopted", with a sweep showing 3
+better than 2 on both public and held-out and a note that the gate had not been
+run. The gate has now been run, against the current pipeline (component matching
+on), and the parameter this file "warns hardest about" earned that warning.
 
-Up on both sets, +0.0028 held-out and +0.0008 public, two of three draws clearly
-better and the third flat. Public plateaus across 3 and 4; held-out prefers 3.
-The mechanism is the arithmetic in the EARLY note — waiting is ~11:1 favourable
-whenever the extra turn narrows the set.
+**What looked good.** Everything except the thing nobody had checked.
 
-**Not adopted, because the check that matters most did not finish.** The
-unbounded version of this same bet is what collapsed Hit@10 to 0.90, and a mean
-score hides exactly that: nothing above confirms Hit@10 stayed at 1.0000 on the
-public set, or what it did on the held-out draws, or that both split-halves
-agree. `HOLD_UNTIL_TURN` is also the parameter this file warns hardest about.
-Before anyone changes it, run:
+| | hold=2 (shipped) | hold=3 |
+|---|---|---|
+| public | 0.953064 | **0.953900**, Hit@10 1.0000 |
+| held out, mean of 4 | 0.921214 | **0.924957** (+0.0037) |
+| held out, seeds | .9110 / .9247 / .9284 / .9207 | .9109 / .9286 / .9331 / .9271 |
+| held-out non-rank-1 | 140 / 800 | **120 / 800** |
+| held-out defects | 42 | **26** |
 
-```bash
-py -m tools.verify_claims && py -m tools.robustness --seeds 3 && py -m tools.holdout_synth --seeds 3
-```
+Up on three of four draws, sixteen fewer defects, and public up too. On the
+evidence this project normally uses, it is an adopt.
 
-and require Hit@10 1.0000 on the public set, no robustness level down more than
-0.01, and both split-halves positive. The numbers above are real and re-run;
-they are a reason to finish the check, not a reason to ship.
+**What the gate caught.** `tools/robustness.py --seeds 3`:
+
+| shopper wording | hold=2 | hold=3 | delta | worst Hit@10 at 3 |
+|---|---|---|---|---|
+| verbatim | 0.953064 | 0.953900 | +0.0008 | 1.0000 |
+| **casing / punctuation** | 0.930232 | **0.850407** | **−0.0798** | **0.8900** |
+| filler + reworded carrier | 0.926811 | 0.927702 | +0.0009 | 0.9950 |
+| light lexical paraphrase | 0.893246 | 0.894173 | +0.0009 | 0.9850 |
+| interjections | 0.919009 | 0.915575 | −0.0034 | 0.9900 |
+| **truncated mid-sentence** | 0.858798 | **0.795236** | **−0.0636** | **0.8550** |
+| adversarial punctuation | 0.889285 | 0.892393 | +0.0031 | 0.9800 |
+
+The gate allows **0.01**. Casing drift misses it by **8x** and truncation by
+**6x**, and the *mildest* perturbation in the suite takes Hit@10 from 1.0000 to
+**0.8900**. The spread on that level is 0.064 across three seeds — it is not
+just worse, it is unstable.
+
+**The mechanism, and why it is not a surprise in hindsight.** `HOLD_UNTIL_TURN`
+is a *budget*, not a preference. At 2 the agent always answers from turn 3; at 3
+it always answers from turn 4, spending one more of ten turns before it can
+score at all. On verbatim wording that turn is free, because extraction succeeds
+immediately and the extra disclosure is pure gain. Under perturbed wording,
+extraction sometimes needs an extra round-trip — and the session no longer has
+the slack to absorb both. The gain and the exposure come from the same turn.
+
+**Split-half, for completeness.** The even/odd split the gate names is
+**−0.0004 / +0.0021** — half A negative, so that condition fails on its own
+terms too. Over 200 random split-halves the choice holds on both halves **49%**
+of the time, median +0.0008: a coin flip on the public set, statistically
+identical to the `hold-back threshold 3 (vs 4)` row at 52%.
+
+**Three conditions, one pass.**
+
+| gate condition | result |
+|---|---|
+| Hit@10 1.0000 on public | **pass** (1.0000, both halves) |
+| no robustness level down more than 0.01 | **FAIL** — two levels, by 8x and 6x |
+| both split-halves positive | **FAIL** — −0.0004 / +0.0021, and 49% over 200 draws |
+
+**Not adopted. `HOLD_UNTIL_TURN` stays at 2.**
+
+The lesson is about the shape of the evidence, not the parameter. A held-out
+gain of +0.0037 across four draws is the strongest kind of evidence this project
+collects, and it was still the wrong call — because held-out draws vary the
+*target*, and every one of them uses verbatim simulator wording. They cannot see
+a robustness cliff. **A held-out set is not a substitute for an adversarial one;
+they answer different questions, and this change passes one and fails the
+other.**
+
+The gate was written before any of this was measured, by someone who suspected
+exactly this and said so. It was right, and it was very nearly not run.
 
 ## Retired: the recall@500 "ceiling"
 

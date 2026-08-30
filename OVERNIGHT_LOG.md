@@ -1082,3 +1082,70 @@ Held-out figures refreshed across seven documents.
 
 **Result: adopted, default ON.** First change in this project adopted purely on
 held-out evidence. Queue item (7) complete; (8) is folded in above.
+
+---
+
+## Iteration 19 — the HOLD_UNTIL_TURN gate ran, and refused
+
+**Chosen because** it was the one measured lead this project had left open, with
+an explicit gate written out in `SCOREBOARD.md` and never run. It was also worth
+re-measuring rather than reusing the old sweep: component matching landed this
+morning, and the docs' own coupling note says to re-check this parameter
+whenever ranking moves materially.
+
+**Everything except the gate said adopt.**
+
+| | hold=2 | hold=3 |
+|---|---|---|
+| public | 0.953064 | **0.953900**, Hit@10 1.0000 |
+| held out, 4 draws | 0.921214 | **0.924957** (+0.0037) |
+| held-out non-rank-1 | 140 / 800 | **120** |
+| held-out defects | 42 | **26** |
+
+Up on three of four held-out draws, sixteen fewer defects, public up as well.
+Held-out evidence over four draws is the strongest signal this project collects,
+and last iteration I adopted a change on a *smaller* one (+0.0023).
+
+**The gate refused, and not narrowly.** `robustness --seeds 3`:
+
+| level | hold=2 | hold=3 | delta | worst Hit@10 |
+|---|---|---|---|---|
+| **casing / punctuation** | 0.930232 | **0.850407** | **−0.0798** | **0.8900** |
+| **truncated** | 0.858798 | **0.795236** | **−0.0636** | **0.8550** |
+| interject | 0.919009 | 0.915575 | −0.0034 | 0.9900 |
+| (others) | | | +0.0008 to +0.0031 | ≥0.9800 |
+
+The allowance is 0.01. Two levels miss by **8x** and **6x**, and the *mildest*
+perturbation in the suite — casing and punctuation drift — takes Hit@10 from
+1.0000 to **0.8900**, with a 0.064 spread across three seeds. Not merely worse:
+unstable.
+
+Split-half fails too: **−0.0004 / +0.0021** on the even/odd split the gate
+names, and 49% both-positive over 200 random splits — a coin flip, statistically
+indistinguishable from the `hold-back 3 vs 4` row at 52%.
+
+**One of three conditions passed. Not adopted; `HOLD_UNTIL_TURN` stays at 2.**
+
+**The mechanism, which makes it obvious afterwards.** `HOLD_UNTIL_TURN` is a
+*budget*. At 2 the agent always answers from turn 3; at 3, from turn 4 — one
+more of ten turns spent before it can score. On verbatim wording that turn is
+free and the extra disclosure is pure gain. Under perturbed wording extraction
+sometimes needs another round-trip, and the session no longer has slack for
+both. The gain and the exposure are the same turn.
+
+**The lesson is about the evidence, not the parameter.** Held-out draws vary the
+*target*; every one of them still uses verbatim simulator wording. They cannot
+see a robustness cliff. A held-out set is not a substitute for an adversarial
+one — this change passes one and fails the other, and only running both revealed
+which. I would have adopted this on held-out evidence alone, and I would have
+been wrong.
+
+Worth noting the gate was written by someone who suspected precisely this and
+wrote down the check rather than the conclusion. It sat unrun for two days.
+
+**Verified after:** `main` confirmed still at `HOLD_UNTIL_TURN=2` and scoring
+0.953064 / Hit@10 1.0000, 167 tests pass, 21 documented claims re-verify.
+Documentation only — no code changed this iteration, which is the correct
+outcome.
+
+**Result: rejected, recorded.** Queue item (9) complete.
