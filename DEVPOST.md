@@ -73,16 +73,16 @@ as a prediction.
 | | Hit@10 | MRR | MTTC | TechnicalScore |
 |---|---|---|---|---|
 | Provided BM25 baseline | 0.1250 | 0.0680 | 9.81 | 0.1067 |
-| **Held out — targets never tuned on** | 0.9838 | 0.8701 | 2.698 | **0.9189** |
+| **Held out — targets never tuned on** | 0.9838 | 0.8701 | 2.698 | **0.9212** |
 | Public 200 (in-sample) | 1.0000 | 0.9465 | 2.545 | 0.9531 |
 
 `tools/holdout_synth.py` builds valid sessions over catalog products the tuning
 never saw — the evaluator derives a session's entire hidden state from the target
 product, so any of the other 49,800 yields one — and scores them with the
-evaluator unmodified. Four draws: **0.9189 mean, −0.034, same direction every
+evaluator unmodified. Four draws: **0.9212 mean, −0.034, same direction every
 time.**
 
-**0.9189 is what we expect on the hidden 800.** We put it above the better
+**0.9212 is what we expect on the hidden 800.** We put it above the better
 number on purpose. A judge who runs `holdout_synth` themselves should not be
 learning that gap from their own terminal.
 
@@ -169,7 +169,7 @@ returns something wrong.** Paraphrase now costs 0.03 instead of 0.48.
 with all 200 public targets visible. Split-half testing cannot see that — it
 varies *which* sessions are scored, never the fact that all of them were visible
 during tuning. So we built `holdout_synth.py`, and it told us something we did
-not want to hear: on unseen targets, **50 of 148** non-rank-1 sessions had a card
+not want to hear: on unseen targets, **42 of 140** non-rank-1 sessions had a card
 that uniquely identifies the target. On the public 200 that count is 3 of 17.
 Those 50 are **defects, not ambiguity**, and they were invisible until there was
 a set we had not tuned on.
@@ -255,7 +255,7 @@ same code would carry signal.
 - `re`, `hashlib`, `json`, `math`, `dataclasses`, `collections`
 
 **Development tools**
-- VS Code · Claude Code · Git / GitHub · pytest (162 tests) · Windows 11
+- VS Code · Claude Code · Git / GitHub · pytest (167 tests) · Windows 11
 
 **APIs and models**
 - **`qwen2.5:7b-instruct` via local Ollama** (`http://127.0.0.1:11434`), used for

@@ -59,17 +59,17 @@ Two consequences drove the rest of the design:
 | | Hit@10 | MRR | MTTC | TechnicalScore |
 |---|---|---|---|---|
 | Provided BM25 baseline | 0.1250 | 0.0680 | 9.81 | 0.1067 |
-| **Held out — targets never tuned on** | 0.9838 | 0.8701 | 2.698 | **0.9189** |
+| **Held out — targets never tuned on** | 0.9838 | 0.8701 | 2.698 | **0.9212** |
 | Public 200 (in-sample) | 1.0000 | 0.9465 | 2.545 | 0.9531 |
 
 `tools/holdout_synth.py` closes the in-sample gap honestly. The evaluator derives
 a session's entire hidden state from the target product plus a sample id, so a
 valid session can be synthesised over any of the other 49,800 catalog products
-and scored by `evaluate()` unmodified. Four draws of 200 give **0.9189 mean,
-range 0.9093–0.9275** — a consistent **−0.034**, in the same direction every
+and scored by `evaluate()` unmodified. Four draws of 200 give **0.9212 mean,
+range 0.9110-0.9284** — a consistent **-0.032**, in the same direction every
 time.
 
-**0.9189 is our honest expectation for the hidden 800.** 0.9531 is the ceiling.
+**0.9212 is our honest expectation for the hidden 800.** 0.9531 is the ceiling.
 
 Per scenario, on the public set:
 
@@ -280,7 +280,7 @@ claim is itself automated:
 
 | | |
 |---|---|
-| `py -m pytest tests/ -q` | **162 tests**, 0.2 s |
+| `py -m pytest tests/ -q` | **167 tests**, 0.2 s |
 | `py -m tools.verify_claims` | re-runs **20 documented claims** against a fresh evaluation; exits non-zero on drift |
 | `py -m tools.stability` | 200 random split-halves per shipped choice |
 | `py -m tools.holdout_synth` | scores on catalog targets the tuning never saw |

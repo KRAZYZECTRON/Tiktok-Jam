@@ -1,9 +1,9 @@
 # TASKS
 
 `main` — Hit@10 **1.0000** · MRR **0.9465** · MTTC **2.545** · **score 0.953064**
-(kit baseline was 0.1067). Held out on targets never tuned on: **0.9189**.
+(kit baseline was 0.1067). Held out on targets never tuned on: **0.9212**.
 
-**Treat 0.9189 as the expectation for the hidden 800 and 0.953064 as the
+**Treat 0.9212 as the expectation for the hidden 800 and 0.953064 as the
 ceiling.** Full history, every intermediate measurement, and the retired claims
 are in `SCOREBOARD.md`.
 

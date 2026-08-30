@@ -989,3 +989,96 @@ The drift scanner earned its keep again: adding 30 tests immediately failed the
 run over `README.md` and `REPORT.md` still saying 132.
 
 **Result: adopted, shipped disabled.** Queue item (6) of 12 complete.
+
+---
+
+## Iteration 18 — the EXTRACT class: the planned fix was refuted, a different one adopted
+
+**Chosen because** it is the largest remaining opportunity: held-out sits 0.034
+below public, and a third of held-out failures are defects rather than ties.
+
+**The plan was a catalog-mined synonym lexicon. The diagnosis killed it.**
+
+Before building anything I checked two things.
+
+First, the repo already contains the "third tier that fires only when both card
+tiers are empty" — `BONUS_CARD_PARTIAL`, in the `elif hits:` branch, tested and
+rejected on held-out with a monotone decline. Building it again would have been
+re-running a disproved experiment.
+
+Second, `tools/extract_probe.py` (new) sizes the lexicon opportunity before
+paying for it. Over **800 unseen sessions**:
+
+| verdict | constraints | meaning |
+|---|---|---|
+| MATCHES | 47 | not the culprit |
+| FUZZY | 56 | shipped fuzzy tier already covers it |
+| **VOCAB** | **0** | **a lexicon would fix it** |
+| ABSENT | 2 | genuine mis-extraction |
+
+**Zero VOCAB.** Not few — none. And in hindsight it follows from the premise the
+whole submission rests on: the shopper's constraints are verbatim strings from
+the target's own metadata, so shopper and product *cannot* use different words
+for the same thing. Both 7a (catalog-mined lexicon) and 7b (pruned GloVe /
+WordNet) targeted a class with no members. The probe cost an hour and saved a
+day, and it is the second time tonight measuring first has changed the plan.
+
+**Building the probe took three wrong turns, all mine, all silent failures.**
+
+1. Filtered on `session["rank"]`; the field is `best_rank`. The filter never
+   fired, so every session was examined and the tool reported a clean zero.
+2. Looked up agent state by `sample_id`. The evaluator mints a **random**
+   `session_id`, so `agent._states` had none of them — instrumenting revealed
+   state found for **0 of 82** failing sessions while the headline still said
+   "no defects found". Fixed by replaying each session with a session id we own.
+3. Left a dead `worst = min(...)` immediately overwritten by `max(...)`.
+
+Every one of those produced a *plausible* number. A diagnostic that fails
+loudly is worth more than one that quietly reports zero — the same lesson this
+project already learned about the truncating extractor, relearned in the tool
+built to look for it.
+
+**What the failure actually is.** The examples showed it at once:
+
+```
+agent extracted : "solid colors: 100% cotton"
+                  "heather grey: 90% cotton, 10% polyester"
+target's slot   : "solid colors: 100% cotton; heather grey: 90% cotton, 10% ..."
+```
+
+`_disclosed_constraints` splits the reply on `";"` — correct, `customer_reply`
+joins constraints that way — but `card_slots` can emit **one slot with `"; "`
+inside it**, and the same split shatters it into pieces matching nothing.
+
+**Adopted: component matching.** A disclosed constraint may equal a whole
+`"; "`-delimited component of a slot. It reverses exactly the split the agent
+performed and nothing looser.
+
+| | held-out mean | s1 | s2 | s3 | s4 | non-rank-1 | defects |
+|---|---|---|---|---|---|---|---|
+| before | 0.918948 | .9093 | .9225 | .9275 | .9165 | 148 | 50 |
+| **after** | **0.921214** | .9110 | .9247 | .9284 | .9207 | **140** | **42** |
+
+**Up on four draws of four. Public score bit-identical at 0.953064 / Hit@10
+1.0000** — which is precisely why nobody found this: the failure barely exists
+on the set we tuned on. Robustness gate passed, worst level down 0.0024 against
+a 0.01 limit, and the two weakest cases both *improved* (truncate 0.8553 →
+0.8588, paraphrase 0.8906 → 0.8932).
+
+**This contradicts one of our own rejected rows, and the correction matters.**
+`SCOREBOARD` had "semicolon-tolerant card matching" as tested and rejected twice
+— containment (0.9090) and substring tolerance (0.9096). Both deserved
+rejection: they manufacture false positives. Component *equality* is a third
+form that was never tried, and the family was written off after two of three.
+Both earlier tests also ran on the **public** set, where the fix is worth
+literally zero digits.
+
+Renamed `CARD_COMPONENT_MATCH` (a flag, not a bonus — 0.1 and 0.04 scored
+identically because the value was never read as a weight).
+
+**Verified after:** 167 tests pass (5 new), 21 documented claims re-verify,
+public 0.953064 / Hit@10 1.0000 unchanged, `evaluator/` and `data/` untouched.
+Held-out figures refreshed across seven documents.
+
+**Result: adopted, default ON.** First change in this project adopted purely on
+held-out evidence. Queue item (7) complete; (8) is folded in above.

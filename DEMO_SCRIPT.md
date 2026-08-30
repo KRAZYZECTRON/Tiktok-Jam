@@ -162,7 +162,7 @@ This shot is why the video is worth watching. Do not cut it for time.
 
 > "But that 0.9531 is in-sample. Every threshold in this agent was picked while
 > all 200 public targets were visible, so we built a tool that scores us on
-> catalog products the tuning never saw. Four draws: **0.9189**. Consistently
+> catalog products the tuning never saw. Four draws: **0.9212**. Consistently
 > 0.034 lower.
 >
 > That's the number we expect on the hidden 800, and we put it above the better
@@ -182,18 +182,18 @@ This shot is why the video is worth watching. Do not cut it for time.
 ### Shot 6 — close · 2:45–3:00 · 15 s
 
 **On screen:** split or quick cuts — `requirements.txt` (no runtime
-dependencies), then `py -m pytest tests/ -q` typed live (0.9 s, 162 passed).
+dependencies), then `py -m pytest tests/ -q` typed live (0.9 s, 167 passed).
 
 > "No LLM on the scored path. Zero tokens, zero dollars, no network socket — we
 > built an LLM re-ranker and a vector retriever, measured both, and shipped both
 > **disabled**, because each one made the score worse. It's pure standard
 > library, so it cannot fail an offline, CPU-only grading run.
 >
-> 162 tests. Every number in our docs re-verified by a tool that fails the build
+> 167 tests. Every number in our docs re-verified by a tool that fails the build
 > if any of them drift."
 
 **Final card:** `github.com/KRAZYZECTRON/Tiktok-Jam` · `0.9531 public ·
-0.9189 held out`
+0.9212 held out`
 
 ---
 

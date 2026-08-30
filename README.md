@@ -11,7 +11,7 @@ product inside a Top-10 list, within 10 turns.
 |---|--------|-----|------|-----------------|
 | Provided BM25 baseline | 0.1250 | 0.0680 | 9.81 | 0.1067 |
 | **This agent** | **1.0000** | **0.9465** | **2.55** | **0.9531** |
-| …on targets it was never tuned on | 0.9838 | 0.8701 | 2.70 | 0.9189 |
+| …on targets it was never tuned on | 0.9838 | 0.8764 | 2.68 | 0.9212 |
 
 200 public sessions, `evaluator/local_evaluator.py`, unmodified.
 `TechnicalScore = 0.50·Hit@10 + 0.30·MRR + 0.20·Efficiency`.
@@ -20,7 +20,7 @@ product inside a Top-10 list, within 10 turns.
 while all 200 public targets were visible, so 0.9531 is an in-sample number.
 `tools/holdout_synth.py` synthesises sessions over catalog products the tuning
 never saw and scores them with the same unmodified evaluator: four draws of 200
-give **0.9189 on average** (0.9093–0.9275), a consistent **−0.034**. That is our
+give **0.9212 on average** (0.9110-0.9284), a consistent **-0.032**. That is our
 honest expectation for the hidden 800, and the reason the gap is stated here
 rather than in a footnote is that we would rather a judge learn it from us.
 
@@ -147,7 +147,7 @@ scale-free, so neither side needs calibrating against the other.
   were found to overstate that scope.) The gain holds on both halves but
   unevenly (+0.083 / +0.013 for the tuned weights; +0.013 / +0.023 for the
   structural change). `tools/holdout_synth.py` supersedes both for predicting
-  the hidden 800: **expect 0.9189**, not 0.9531. See the Result table.
+  the hidden 800: **expect 0.9212**, not 0.9531. See the Result table.
 - **An optional local-LLM re-ranking stage exists** (`starter/llm_rerank.py`,
   Ollama + qwen2.5:7b-instruct) but is **off by default and not part of the
   reported score**, because official scoring may run offline. It degrades to
@@ -367,7 +367,7 @@ Robustness here was free rather than profitable, which is the honest claim.
   while the thresholds were picked. `tools/holdout_synth.py` closes that by
   building sessions over catalog products absent from the public set — the
   evaluator derives a session's whole hidden state from the target product, so
-  any of the other 49,800 products yields a valid one. Four draws: **0.9189
+  any of the other 49,800 products yields a valid one. Four draws: **0.9212
   mean, −0.034 against the public score, in the same direction every time.**
   More telling than the gap: of the 148 unseen sessions not returned at rank 1,
   **50 had a card that uniquely identifies the target** — the conversation does
@@ -398,7 +398,7 @@ Robustness here was free rather than profitable, which is the honest claim.
 | `starter/orchestrate.py` | CLARIFY / IDENTIFY / EXPLORE — which workflow this turn runs, and why |
 | `starter/profile.py` | profile distillation and cross-session memory |
 | `starter/llm_rerank.py` | optional LLM stage, off by default |
-| `tests/` | 162 tests; `py -m pytest tests/ -q` |
+| `tests/` | 167 tests; `py -m pytest tests/ -q` |
 | `tools/verify_claims.py` | re-runs every number the docs assert; exits non-zero on drift |
 | `tools/holdout_synth.py` | scores on catalog products the tuning never saw |
 | `tools/robustness.py` | seven perturbation styles, multi-seed |

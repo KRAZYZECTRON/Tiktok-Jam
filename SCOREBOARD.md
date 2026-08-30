@@ -24,6 +24,7 @@ Score = 0.50·Hit@10 + 0.30·MRR + 0.20·efficiency, efficiency = (11 − MTTC)/
 | 29 Aug | answer early when already identified (re-adopted) | 1.0000 | 0.9380 | 2.57 | 0.9501 | ✅ |
 | 29 Aug | product rating as a second post-fusion tie-break | 1.0000 | 0.9438 | 2.55 | 0.9522 | ✅ |
 | 29 Aug | fuzzy card tier + hardened extraction (robustness) | **1.0000** | **0.9465** | **2.55** | **0.9531** | ✅ |
+| 31 Aug | component matching for `; `-joined card slots | 1.0000 | 0.9465 | 2.545 | 0.9531 | ✅ *(held-out +0.0023)* |
 
 "verified" = re-run independently on a clean checkout of that commit, not just
 quoted from the authoring session. The dialog-merge row is the one intermediate
@@ -680,6 +681,88 @@ stronger sentence than "no smarter question is possible".
 Reproduce: `py -m tools.question_value` (both halves, ~3 min), or
 `py -m tools.question_value --no-score --uncapped` for the agreement table.
 
+## The `; ` shattering defect — diagnosed, then fixed
+
+**Adopted 31 Aug. Held out 0.918948 → 0.921214, up on all four seeds; public set
+exactly unchanged at 0.953064 / Hit@10 1.0000.**
+
+### The diagnosis came first, and it killed the plan we started with
+
+The plan for this work was a synonym lexicon: mine colour/material/fabric
+synonyms from the catalog's own 50,000 products so the fuzzy tier could match a
+shopper's word to a differently-worded slot. `tools/extract_probe.py` was built
+to size that opportunity before building it. It replays the held-out draws and,
+for every session where the target fails its own card, classifies each disclosed
+constraint:
+
+| verdict over 800 unseen sessions | constraints | meaning |
+|---|---|---|
+| MATCHES | 47 | the slot contains it exactly; not the culprit |
+| FUZZY | 56 | ≥75% token overlap; the shipped fuzzy tier already covers it |
+| **VOCAB** | **0** | **no token overlap but semantically close — a lexicon would fix it** |
+| ABSENT | 2 | genuine mis-extraction |
+
+**Zero.** Not "few" — none, across 800 sessions. There is no vocabulary gap in
+this benchmark, which in hindsight follows from the thing that makes the whole
+submission work: the shopper's constraints are *verbatim strings from the
+target's own metadata*, so shopper and product cannot use different words for
+the same thing. A synonym lexicon, and the pruned-embedding fallback behind it,
+would have fixed exactly nothing. **The tool cost an hour and saved a day.**
+
+### What the failure actually is
+
+The same examples that ruled out vocabulary showed the real shape immediately:
+
+```
+agent extracted : "solid colors: 100% cotton"
+                  "heather grey: 90% cotton, 10% polyester"
+                  "all other heathers: 50% cotton, 50% polyester"
+target's slot   : "solid colors: 100% cotton; heather grey: 90% cotton, 10% ..."
+```
+
+`_disclosed_constraints` splits the shopper's reply on `";"`, correctly, because
+`customer_reply` joins several constraints that way. But `card_slots` can also
+emit a **single slot with `"; "` inside it**, and then the same split shatters
+one slot into pieces that match nothing. The conjunctive filter empties, and the
++0.084 identification signal switches off for the whole session.
+
+### Why the earlier rejection did not settle it
+
+`SCOREBOARD` already carried "semicolon-tolerant card matching" as tested and
+rejected, twice — via containment (0.9090) and substring tolerance (0.9096).
+Both are right to reject: they manufacture false positives, because any short
+constraint is a substring of something. **Component *equality* is neither.** A
+disclosed constraint must equal a whole `"; "`-delimited component of a slot —
+it reverses exactly the split the agent itself performed, and nothing looser.
+
+And both earlier tests were run on the **public** set, where this failure is
+rare enough to be invisible: the public score is *bit-identical* with the fix on
+and off. It only shows up where it lives.
+
+| | held-out mean | seed 1 | seed 2 | seed 3 | seed 4 | non-rank-1 | defects |
+|---|---|---|---|---|---|---|---|
+| shipped before | 0.918948 | 0.9093 | 0.9225 | 0.9275 | 0.9165 | 148 / 800 | 50 |
+| **component matching** | **0.921214** | 0.9110 | 0.9247 | 0.9284 | 0.9207 | **140** | **42** |
+
+Up on four draws out of four, eight fewer defects, and the public set does not
+move by a single digit. The gain is small — +0.0023 — but it is the first thing
+in this project adopted purely on held-out evidence, and it is directionally
+consistent in a way none of the coin-flip tunables were.
+
+### Two lessons, both about our own records
+
+**A rejected idea can be rejected for the right reason and still be wrong about
+the family it belongs to.** Containment and substring tolerance really do fail.
+"Semicolon tolerance" was filed as a dead end when only two of its three
+possible forms had been tried, and the untried one is the only one that is not a
+false-positive machine. That is the third time in this project a sound mechanism
+turned out to have been tested in the wrong form.
+
+**A defect measured on the set you tuned on is measured in the wrong place.**
+This was rejected at 6.7% of scored turns on the public set and re-adopted at
+2.9% of held-out sessions — a *smaller* rate, on the set that actually predicts
+the hidden 800.
+
 ## Tested and rejected
 
 Recorded so nobody spends hours re-deriving them. All remain exposed as
@@ -689,7 +772,7 @@ tunables at inert defaults, so each is one env var away from reproducing.
 |------|--------|---------------|
 | **Unbounded confidence gating** | 0.8712 → 0.8668 at best | Hold back while the *consistent set* is large. MRR rises (0.661 → 0.773) but Hit@10 collapses to 0.90: a session whose set never shrinks never answers at all. Superseded by the bounded version below, which fixes exactly this. `TJ_CONFIDENCE`, disabled. |
 | ~~**Answer early when already certain**~~ | **later adopted** | Rejected at MRR 0.89 on a split-half sign flip (−0.0026 / +0.0087), then re-tested and adopted at MRR 0.94: +0.0040 / +0.0034 with MRR identical on and off. The idea was never wrong; the ranker was not yet good enough for a small consistent set to mean rank 1. See the coupling note above. |
-| **Semicolon-tolerant card matching** | 0.9122 → 0.9096 | Strict equality rejects the true target on 6.7% of scored turns, because one card slot can contain "; " internally and the splitter shatters it. Fixing it made things **worse**, twice — via containment (0.9090) and via substring tolerance (0.9096). The strict filter's failure mode is benign: when it rejects everyone the bonus goes inert and other signals rank. A looser filter instead manufactures false positives. A real bug that is better left unfixed. |
+| ~~**Semicolon-tolerant card matching**~~ | **later adopted, in a third form** | Strict equality rejects the true target on 6.7% of scored turns, because one card slot can contain "; " internally and the splitter shatters it. Fixing it made things **worse**, twice — via containment (0.9090) and via substring tolerance (0.9096). The strict filter's failure mode is benign: when it rejects everyone the bonus goes inert and other signals rank. A looser filter instead manufactures false positives. A real bug that is better left unfixed. |
 | **Adaptive probing** | **built and measured: -0.00085** | **This row used to say "not implementable", and that was wrong.** It is implementable, it just does not pay. `starter/question.py` is a real expected-posterior-size estimator: for each attribute it partitions the still-consistent set by the reply each candidate *would* give and scores `|C| - E[|C'|]`. Over all 1000 scored turns of the public set, `"other"` is the argmax **100%** of the time at the runtime's 400-candidate cap and **99.0%** uncapped. Enabled end to end it costs **-0.00085**. The `[:2]` cap is the mechanism, exactly as argued — but the argument is now a measurement, and the honest phrasing is "measured and rejected", not "impossible". `TJ_QVALUE=1`, disabled. |
 | **Popularity prior, applied globally** | 0.8629 → 0.8488 at best non-zero | **Superseded — see below. The signal was right, the placement was wrong.** | The target *is* a real purchase, so this sounded well-founded. It drives MTTC down hard (2.47 → 1.91) but knocks Hit@10 off 1.0000 and MRR with it: a prior on "what people buy", competing with evidence about "what this shopper described" rather than complementing it. |
 | **Profile-rating personalization** | 0.8629 → 0.8555 at worst | Matching the catalog's `average_rating` to the profile's `average_prior_rating`. A named innovation direction in the spec, so worth testing, but `average_prior_rating` describes the shopper's rating *habits*, not a preference over quality — no information about which item they bought, and it dilutes evidence that does. |

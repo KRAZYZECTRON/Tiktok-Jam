@@ -312,6 +312,38 @@ BONUS_CARD_FUZZY = _tunable("TJ_B_CARD_FUZZY", 0.04)
 #
 # Kept at 0 rather than deleted so the result stays reproducible.
 BONUS_CARD_PARTIAL = _tunable("TJ_B_CARD_PARTIAL", 0.0)
+# Component matching: accept a disclosed constraint that equals one "; "-joined
+# COMPONENT of a card slot, not just a whole slot.
+#
+# Diagnosed rather than guessed. `tools/extract_probe.py` replays the held-out
+# draws and asks, of every session where the target fails its own card, why. The
+# answer over 800 unseen sessions is unambiguous: 23 such sessions, 0 of them a
+# vocabulary gap, and the examples all show the same shape --
+#
+#   agent extracted : "solid colors: 100% cotton"
+#                     "heather grey: 90% cotton, 10% polyester"
+#   target's slot   : "solid colors: 100% cotton; heather grey: 90% cotton, ..."
+#
+# `_disclosed_constraints` splits the shopper's reply on ";" because the
+# evaluator joins several constraints that way. But `card_slots` can also
+# produce a SINGLE slot with "; " inside it, and then the split shatters one
+# slot into parts that match nothing.
+#
+# This is the "semicolon-tolerant card matching" idea SCOREBOARD records as
+# tested and rejected -- but that test used containment and substring tolerance,
+# both of which manufacture false positives, and it was run on the PUBLIC set
+# where this failure is rare. Component *equality* is neither of those, and the
+# held-out set is where the failure actually lives.
+# Named a flag, not a bonus, because it is one: a component hit counts toward
+# `hits` and therefore promotes into the ordinary exact-consistent group at
+# BONUS_CARD_FUSED. It scales nothing, and 0.1 vs 0.04 scored identically
+# precisely because the value was never read as a weight.
+#
+# ADOPTED, default ON. Held out over four draws: 0.918948 -> 0.921214, up on
+# all four seeds, defects 50 -> 42, non-rank-1 148 -> 140. Public set exactly
+# unchanged at 0.953064 / Hit@10 1.0000 -- the failure it fixes is rare there,
+# which is the whole reason it went unnoticed. TJ_CARD_COMPONENT=0 reverts.
+CARD_COMPONENT_MATCH = bool(_tunable("TJ_CARD_COMPONENT", 1.0))
 # Fraction of a disclosed constraint's tokens that must appear in a card slot
 # for it to count as an approximate match.
 # 0.75, swept against the paraphrase levels rather than the clean set (the clean
@@ -417,6 +449,8 @@ class _Catalog:
         self.popularity: dict[str, float] = {}
         self.rating: dict[str, float] = {}
         self.card: dict[str, tuple[str, ...]] = {}
+        # Only populated when CARD_COMPONENT_MATCH is on.
+        self.card_parts: dict[str, frozenset[str]] = {}
         self.idf: dict[str, float] = {}
         self._token_cache: dict[str, dict[str, set[str]]] = {}
         self._card_token_cache: dict[str, list[set[str]]] = {}
@@ -449,9 +483,20 @@ class _Catalog:
                         (field, _text(product.get(field))) for field in FIELD_WEIGHTS
                     )
                 }
-                self.card[parent_asin] = tuple(
+                slots = tuple(
                     pool.setdefault(slot, slot) for slot in card_slots(product)
                 )
+                self.card[parent_asin] = slots
+                if CARD_COMPONENT_MATCH:
+                    parts = set()
+                    for slot in slots:
+                        if "; " in slot:
+                            for part in slot.split(";"):
+                                value = clean_constraint(part).lower()
+                                if value:
+                                    parts.add(pool.setdefault(value, value))
+                    if parts:
+                        self.card_parts[parent_asin] = frozenset(parts)
                 raw_rating = product.get("average_rating")
                 if raw_rating not in (None, ""):
                     try:
@@ -792,7 +837,14 @@ def rank(candidates: list[Candidate], state: DialogState) -> list[Candidate]:
             slots = catalog.card.get(candidate.parent_asin, ())
             if not slots:
                 continue
-            hits = sum(1 for value in disclosed if value in slots)
+            if CARD_COMPONENT_MATCH:
+                parts = catalog.card_parts.get(candidate.parent_asin)
+                hits = sum(
+                    1 for value in disclosed
+                    if value in slots or (parts is not None and value in parts)
+                )
+            else:
+                hits = sum(1 for value in disclosed if value in slots)
             if hits == len(disclosed):
                 consistent.add(candidate.parent_asin)
             elif BONUS_CARD_FUZZY and all(
