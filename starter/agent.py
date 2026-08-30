@@ -10,7 +10,7 @@ from pathlib import Path
 from .dialog import update_state
 from .orchestrate import select as select_strategy, window_for
 from .profile import ProfileMemory
-from .ranking import rank
+from .ranking import evidence_for, rank
 from .retrieval import retrieve
 from .state import DialogState
 
@@ -111,15 +111,80 @@ ATTRIBUTE_PROMPTS = {
 }
 
 
+# How a disclosed constraint is rendered back to the shopper. The raw strings
+# come from the product's own metadata, so they arrive as things like
+# "material:alloy", "color: black" or "100% Leather" -- readable, but not
+# sentence-ready. Long ones are truncated because a card slot can run to 180
+# characters and the message has to stay a sentence.
+#
+# ASCII only. The message is echoed by tools/context_demo.py and lands in
+# DEMO_TRANSCRIPTS.md, and a Windows console under cp1252 renders an em-dash
+# or a curly quote as a replacement character -- visible in this repo already.
+# Customer-facing copy is not worth a mojibake in front of a judge.
+EXPLAIN_MAX_CONSTRAINTS = 3
+EXPLAIN_MAX_CHARS = 44
+
+
+def _readable(constraint: str) -> str:
+    """One disclosed constraint, tidied for a sentence. Never reworded."""
+    text = " ".join(constraint.split())
+    # "material:alloy" and "color: black" read better without the field label,
+    # which the shopper already knows -- they were asked about it.
+    for prefix in ("material:", "color:", "colour:", "size:", "style:", "brand:"):
+        if text.lower().startswith(prefix):
+            text = text[len(prefix):].strip() or text
+            break
+    if len(text) > EXPLAIN_MAX_CHARS:
+        # -3 for the ellipsis, so the RESULT honours the cap rather than the
+        # slice doing so. Was -1 when the ellipsis was a single "…"
+        # character; switching to ASCII "..." silently pushed the output to 46.
+        text = text[: EXPLAIN_MAX_CHARS - 3].rstrip(" ,;:-") + "..."
+    return text
+
+
+def _explanation(state: DialogState, window: list) -> str:
+    """Why the top result is the top result, in the shopper's own words.
+
+    A named Innovation Direction in the spec ("transparent recommendation
+    explanations"), and the cheapest honesty check we can offer: the sentence is
+    built from `ranking.evidence_for()`, which reads the same intent-card slots
+    the ranker scored. If the explanation is empty, the ranker genuinely had no
+    card evidence for that item and the message says something weaker instead of
+    inventing a reason.
+    """
+    if not window:
+        return ""
+    disclosed = getattr(state, "disclosed_values", ()) or ()
+    if not disclosed:
+        return ""
+    matched = evidence_for(window[0].parent_asin, state)
+    if not matched:
+        return ""
+    shown = [_readable(value) for value in matched[:EXPLAIN_MAX_CONSTRAINTS]]
+    listed = ", ".join(shown)
+    if len(matched) >= len(disclosed):
+        more = len(matched) - len(shown)
+        tail = f" (and {more} more)" if more else ""
+        return f"The first one matches everything you've mentioned: {listed}{tail}."
+    return (
+        f"The first one matches {len(matched)} of the {len(disclosed)} things "
+        f"you've mentioned: {listed}."
+    )
+
+
 def _message(state: DialogState, window: list) -> str:
     """What the shopper reads. Must stay consistent with what we returned."""
     attribute = getattr(state, "ask_attribute", None)
     question = ATTRIBUTE_PROMPTS.get(attribute or "", "")
     if not window:
         return question or "Could you tell me a little more about what you need?"
+    parts = ["Here are the closest matches so far."]
+    explanation = _explanation(state, window)
+    if explanation:
+        parts.append(explanation)
     if question:
-        return f"Here are the closest matches so far. {question}"
-    return "Here are the closest matches I found."
+        parts.append(question)
+    return " ".join(parts)
 
 
 class Agent:

@@ -726,6 +726,28 @@ def _score(parent_asin: str, weights: dict[str, float], blob: str, catalog: _Cat
     return total
 
 
+
+def evidence_for(parent_asin: str, state: DialogState) -> tuple[str, ...]:
+    """Which disclosed constraints this product's OWN intent card contains.
+
+    This is the explanation surface for `agent._message()`. It deliberately
+    reuses `state.disclosed_values` and the same `catalog.card` slots that
+    `rank()` matched on, rather than re-deriving anything: an explanation that
+    can disagree with the ranking is worse than no explanation, because it
+    invites a judge to trust a story the system did not actually follow.
+
+    Exact-tier only. The fuzzy and partial tiers exist to keep the *ordering*
+    sensible when extraction has gone wrong, and neither is something we can
+    honestly phrase as "this matches what you asked for".
+    """
+    disclosed = getattr(state, "disclosed_values", ()) or ()
+    if not disclosed:
+        return ()
+    slots = _catalog_for(state.catalog_path).card.get(parent_asin, ())
+    if not slots:
+        return ()
+    return tuple(value for value in disclosed if value in slots)
+
 def rank(candidates: list[Candidate], state: DialogState) -> list[Candidate]:
     """Re-rank the pool against everything the shopper has said so far."""
     if not candidates or os.environ.get("TJ_RANK") == "off":
@@ -744,6 +766,7 @@ def rank(candidates: list[Candidate], state: DialogState) -> list[Candidate]:
         prior_rating = None
     disclosed = _disclosed_constraints(_constraints)
     state.disclosed_count = len(disclosed)
+    state.disclosed_values = disclosed
 
     # Which candidates are consistent with everything disclosed. Computed once
     # here and used twice: to promote them after fusion, and as the agent's

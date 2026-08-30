@@ -26,7 +26,7 @@ The agent returns *no list* while the candidate set is still broad, then answers
 - retrieval query: `Jewelry Necklaces Material:alloy Triple Moon Pentagram Symbol The Triple Moon represents t`
 - consistent products: **1** from 3 disclosed constraint(s)
 - strategy: **IDENTIFY** — 1 candidate(s) consistent with 3 disclosed constraint(s) — answering from the head
-- agent: *"Here are the closest matches so far. Tell me a bit more about what matters to you."* · asks `other` · returns 10
+- agent: *"Here are the closest matches so far. The first one matches everything you've mentioned: alloy, triple moon pentagram symbol, the triple moon represents the phases of.... Tell me a bit more about what matters to you."* · asks `other` · returns 10
 - **target at rank 1**
 
 > Found on turn 2 at rank 1.
@@ -55,7 +55,7 @@ The shopper changes their mind. The opening preference is removed from the accum
 - retrieval query: `Accessories Belts Buckle closure leather 100% Leather`
 - consistent products: **18** from 3 disclosed constraint(s)
 - strategy: **IDENTIFY** — 18 candidate(s) consistent with 3 disclosed constraint(s) — answering from the head
-- agent: *"Here are the closest matches so far. Tell me a bit more about what matters to you."* · asks `other` · returns 10
+- agent: *"Here are the closest matches so far. The first one matches everything you've mentioned: buckle closure, leather, 100% leather. Tell me a bit more about what matters to you."* · asks `other` · returns 10
 - **target at rank 2**
 
 **Turn 3** — shopper: *"Actually, ignore my earlier preference. What I need is: leather."*
@@ -64,7 +64,7 @@ The shopper changes their mind. The opening preference is removed from the accum
 - retrieval query: `Accessories Belts leather 100% Leather`
 - consistent products: **123** from 2 disclosed constraint(s)
 - strategy: **IDENTIFY** — 123 candidate(s) consistent with 2 disclosed constraint(s) — answering from the head
-- agent: *"Here are the closest matches so far. Tell me a bit more about what matters to you."* · asks `other` · returns 10
+- agent: *"Here are the closest matches so far. The first one matches everything you've mentioned: leather, 100% leather. Tell me a bit more about what matters to you."* · asks `other` · returns 10
 - **target at rank 3**
 
 > Found on turn 3 at rank 3.
@@ -101,7 +101,7 @@ The shopper opens with no constraints at all. Watch the consistent-product count
 - retrieval query: `Basketball Men polyester 100% Polyester Drawstring closure High quality mesh for maximum b`
 - consistent products: **1** from 4 disclosed constraint(s)
 - strategy: **IDENTIFY** — 1 candidate(s) consistent with 4 disclosed constraint(s) — answering from the head
-- agent: *"Here are the closest matches so far. Tell me a bit more about what matters to you."* · asks `other` · returns 10
+- agent: *"Here are the closest matches so far. The first one matches everything you've mentioned: polyester, 100% polyester, drawstring closure (and 1 more). Tell me a bit more about what matters to you."* · asks `other` · returns 10
 - **target at rank 1**
 
 > Found on turn 3 at rank 1.
@@ -138,7 +138,7 @@ The shopper opens with no constraints at all. Watch the consistent-product count
 - retrieval query: `Athletic Walking fabric 100% Textile`
 - consistent products: **5** from 2 disclosed constraint(s)
 - strategy: **IDENTIFY** — 5 candidate(s) consistent with 2 disclosed constraint(s) — answering from the head
-- agent: *"Here are the closest matches so far. Tell me a bit more about what matters to you."* · asks `other` · returns 10
+- agent: *"Here are the closest matches so far. The first one matches everything you've mentioned: fabric, 100% textile. Tell me a bit more about what matters to you."* · asks `other` · returns 10
 - **target at rank 1**
 
 > Found on turn 3 at rank 1.
@@ -167,7 +167,7 @@ When a turn adds no new constraint the query is unchanged, so retrieval and rank
 - retrieval query: `Novelty Women cotton color: grey Solid colors: 100% Cotton Heather Grey: 90% Cotton, 10% P`
 - consistent products: **0** from 5 disclosed constraint(s)
 - strategy: **IDENTIFY** — 0 candidate(s) consistent with 5 disclosed constraint(s) — answering from the head
-- agent: *"Here are the closest matches so far. Tell me a bit more about what matters to you."* · asks `other` · returns 10
+- agent: *"Here are the closest matches so far. The first one matches 2 of the 5 things you've mentioned: cotton, grey. Tell me a bit more about what matters to you."* · asks `other` · returns 10
 
 **Turn 3** — shopper: *"For that, what matters is: Imported."*
 
@@ -175,7 +175,7 @@ When a turn adds no new constraint the query is unchanged, so retrieval and rank
 - retrieval query: `Novelty Women cotton color: grey Solid colors: 100% Cotton Heather Grey: 90% Cotton, 10% P`
 - consistent products: **0** from 6 disclosed constraint(s)
 - strategy: **IDENTIFY** — 0 candidate(s) consistent with 6 disclosed constraint(s) — answering from the head
-- agent: *"Here are the closest matches so far. Tell me a bit more about what matters to you."* · asks `other` · returns 10
+- agent: *"Here are the closest matches so far. The first one matches 3 of the 6 things you've mentioned: cotton, grey, imported. Tell me a bit more about what matters to you."* · asks `other` · returns 10
 
 **Turn 4** — shopper: *"I don't have an additional preference for other."*
 
@@ -183,7 +183,7 @@ When a turn adds no new constraint the query is unchanged, so retrieval and rank
 - retrieval query: `Novelty Women cotton color: grey Solid colors: 100% Cotton Heather Grey: 90% Cotton, 10% P`
 - consistent products: **0** from 6 disclosed constraint(s)
 - strategy: **EXPLORE** — nothing new disclosed for 1 turn(s); the query is unchanged, so showing page 2 instead of a rejected top ten
-- agent: *"Here are the closest matches so far. What size or fit are you after?"* · asks `size` · returns 10
+- agent: *"Here are the closest matches so far. The first one matches 3 of the 6 things you've mentioned: cotton, grey, imported. What size or fit are you after?"* · asks `size` · returns 10
 
 **Turn 5** — shopper: *"I don't have an additional preference for size."*
 
@@ -191,7 +191,7 @@ When a turn adds no new constraint the query is unchanged, so retrieval and rank
 - retrieval query: `Novelty Women cotton color: grey Solid colors: 100% Cotton Heather Grey: 90% Cotton, 10% P`
 - consistent products: **0** from 6 disclosed constraint(s)
 - strategy: **EXPLORE** — nothing new disclosed for 2 turn(s); the query is unchanged, so showing page 3 instead of a rejected top ten
-- agent: *"Here are the closest matches so far. What style are you going for?"* · asks `style` · returns 10
+- agent: *"Here are the closest matches so far. The first one matches 3 of the 6 things you've mentioned: cotton, grey, imported. What style are you going for?"* · asks `style` · returns 10
 
 **Turn 6** — shopper: *"I don't have an additional preference for style."*
 
@@ -199,7 +199,7 @@ When a turn adds no new constraint the query is unchanged, so retrieval and rank
 - retrieval query: `Novelty Women cotton color: grey Solid colors: 100% Cotton Heather Grey: 90% Cotton, 10% P`
 - consistent products: **0** from 6 disclosed constraint(s)
 - strategy: **EXPLORE** — nothing new disclosed for 3 turn(s); the query is unchanged, so showing page 4 instead of a rejected top ten
-- agent: *"Here are the closest matches so far. What will you mainly be using it for?"* · asks `use_case` · returns 10
+- agent: *"Here are the closest matches so far. The first one matches 3 of the 6 things you've mentioned: cotton, grey, imported. What will you mainly be using it for?"* · asks `use_case` · returns 10
 - **target at rank 6**
 
 > Found on turn 6 at rank 6.
@@ -236,7 +236,7 @@ Included deliberately. Every rival ranked above the target is equally consistent
 - retrieval query: `Women Hoodies cotton color: grey Solid colors: 80% Cotton, 20% Polyester Heather Grey: 78%`
 - consistent products: **0** from 6 disclosed constraint(s)
 - strategy: **IDENTIFY** — 0 candidate(s) consistent with 6 disclosed constraint(s) — answering from the head
-- agent: *"Here are the closest matches so far. Tell me a bit more about what matters to you."* · asks `other` · returns 10
+- agent: *"Here are the closest matches so far. The first one matches 3 of the 6 things you've mentioned: cotton, grey, imported. Tell me a bit more about what matters to you."* · asks `other` · returns 10
 - **target at rank 6**
 
 > Found on turn 3 at rank 6.

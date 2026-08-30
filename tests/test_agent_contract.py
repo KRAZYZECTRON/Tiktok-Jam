@@ -177,9 +177,13 @@ def test_runs_with_numpy_and_sentence_transformers_absent(catalog):
             raise ImportError(f"simulated absence of {name}")
         return real_import(name, *args, **kwargs)
 
-    saved = {k: v for k, v in sys.modules.items() if k.split(".")[0] in blocked}
+    saved = {
+        k: v
+        for k, v in sys.modules.items()
+        if k.split(".")[0] in blocked or k.split(".")[0] == "starter"
+    }
     for key in list(sys.modules):
-        if key.split(".")[0] in blocked or key.startswith("starter."):
+        if key.split(".")[0] in blocked or key.split(".")[0] == "starter":
             sys.modules.pop(key, None)
     builtins.__import__ = guard
     try:
@@ -190,8 +194,16 @@ def test_runs_with_numpy_and_sentence_transformers_absent(catalog):
         assert isinstance(response["recommendations"], list)
     finally:
         builtins.__import__ = real_import
+        # Restore the ORIGINAL starter modules, do not merely evict the fresh
+        # ones. Leaving them absent made this test quietly poison every later
+        # module that had already bound a reference to a starter function: the
+        # next `import starter.agent` built a NEW module object, so
+        # monkeypatching "starter.agent.x" patched a module the earlier
+        # reference no longer belonged to. Cost five spurious failures in
+        # tests/test_explain.py, which passed in isolation and failed in the
+        # suite -- the worst shape a test bug can take.
         for key in list(sys.modules):
-            if key.startswith("starter."):
+            if key.split(".")[0] == "starter":
                 sys.modules.pop(key, None)
         sys.modules.update(saved)
 

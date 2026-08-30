@@ -398,7 +398,7 @@ Robustness here was free rather than profitable, which is the honest claim.
 | `starter/orchestrate.py` | CLARIFY / IDENTIFY / EXPLORE — which workflow this turn runs, and why |
 | `starter/profile.py` | profile distillation and cross-session memory |
 | `starter/llm_rerank.py` | optional LLM stage, off by default |
-| `tests/` | 114 tests; `py -m pytest tests/ -q` |
+| `tests/` | 132 tests; `py -m pytest tests/ -q` |
 | `tools/verify_claims.py` | re-runs every number the docs assert; exits non-zero on drift |
 | `tools/holdout_synth.py` | scores on catalog products the tuning never saw |
 | `tools/robustness.py` | seven perturbation styles, multi-seed |

@@ -149,7 +149,11 @@ def render(title: str, blurb: str, r: dict, products) -> list[str]:
         out.append(f"- retrieval query: `{t['query'][:90]}`")
         out.append(f"- consistent products: **{t['consistent']}** from {t['disclosed']} disclosed constraint(s)")
         out.append(f"- strategy: **{t['strategy']}** — {t['reason']}")
-        out.append(f"- agent: *\"{t['agent'][:90]}\"* · asks `{t['asks']}` · returns {t['returned']}")
+        # 90 chars cut the explanation off mid-word ("...mentioned: al"), which
+        # hid the one part of the message a reader is meant to notice. The
+        # message is bounded by construction -- three constraints at 44 chars --
+        # so it is quoted whole.
+        out.append(f"- agent: *\"{t['agent']}\"* · asks `{t['asks']}` · returns {t['returned']}")
         if t["rank"]:
             out.append(f"- **target at rank {t['rank']}**")
         out.append("")

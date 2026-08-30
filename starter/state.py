@@ -45,6 +45,11 @@ class DialogState:
     # consistent-product set collapses from a median of 78 at two to 1 at three,
     # so this is the agent's cue that it can identify rather than guess.
     disclosed_count: int = 0
+    # The disclosed constraints themselves, normalised exactly as the intent
+    # card that produced them was. Set by ranking.rank() alongside the count,
+    # so explanations are built from the same strings the ranker matched on
+    # rather than from a second, possibly divergent, parse of the dialog.
+    disclosed_values: tuple = ()
     # --- written by orchestrate.select(), for inspection and transcripts ---
     # Which of CLARIFY / IDENTIFY / EXPLORE this turn ran, and why. Nothing in
     # the pipeline reads these back; they exist so the agent's own reasoning is

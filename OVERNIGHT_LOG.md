@@ -851,3 +851,69 @@ scan is now one of them), clean 0.953064 / Hit@10 1.0000, `evaluator/` and
 
 **Result: adopted.** Queue item (4) of 12 complete; all four bounded deliverables
 are done.
+
+---
+
+## Iteration 16 — transparent recommendation explanations, and a test bug worse than the feature
+
+**Chosen because** `docs/competition_specification.md` lists "transparent
+recommendation explanations" as an Innovation Direction and we had not built it.
+`_message()` returned the same sentence for every result set. Innovation &
+Problem Insight is 20% of the grade against Technical Execution's 35%, and this
+was the cheapest unbuilt item on that list.
+
+**Built.** `rank()` now records `state.disclosed_values`, and a new
+`ranking.evidence_for()` answers, for one product, *which disclosed constraints
+its own intent card actually contains*. `agent._explanation()` turns that into a
+sentence:
+
+> "Here are the closest matches so far. The first one matches everything you've
+> mentioned: buckle closure, leather, 100% leather. Tell me a bit more about
+> what matters to you."
+
+**The design constraint that mattered.** The explanation is built from the same
+`catalog.card` slots the ranker scored on — not from a second parse of the
+dialog. An explanation that can disagree with the ranking is worse than none,
+because it invites a judge to trust a story the system did not follow. Exact
+tier only: the fuzzy and partial tiers exist to keep the *ordering* sane when
+extraction has failed, and neither is something we can honestly phrase as "this
+matches what you asked for". Where there is no card evidence the agent says
+nothing rather than inventing a reason — pinned by a test.
+
+**Score unchanged: 0.953064, Hit@10 1.0000.** As predicted — the simulator reads
+`ask_attribute`, not prose — but predicted is not verified, so it was measured.
+
+**Two bugs, both found by tests, both mine.**
+
+1. **The ASCII switch broke the length budget.** The truncation was
+   `text[:CAP-1] + ellipsis`, correct while the ellipsis was one `\u2026`
+   character. I switched the copy to ASCII to avoid cp1252 mojibake on a
+   Windows console — `context_demo` already renders em-dashes as `?` here — and
+   the 3-character `...` silently pushed output to 46 against a 44 cap. Fixed to
+   `CAP-3` so the *result* honours the cap rather than the slice.
+
+2. **A latent hazard in the suite, which my tests were the first to trip.**
+   `test_agent_contract.py` evicts every `starter.*` module from `sys.modules`
+   to force a fresh import under an import guard, and its `finally` evicted them
+   again without restoring the originals. So the next `import starter.agent`
+   built a **new module object**, while any test module that had already bound
+   `from starter.agent import _explanation` kept the old one. Patching
+   `"starter.agent.evidence_for"` then patched a module the function no longer
+   belonged to.
+
+   Symptom: `tests/test_explain.py` passed 18/18 in isolation and failed 5 in
+   the suite. **That is the worst shape a test bug can take** — it looks like a
+   flaky feature and it is actually an ordering dependency. Fixed at the source
+   by saving and restoring the original modules, which makes the suite hermetic
+   for every future test, not just these.
+
+**Also fixed:** `tools/demo_transcripts.py` truncated the agent message at 90
+characters, which cut the new explanation off mid-word (`"...mentioned: al"`) —
+hiding the one part of the message a reader is meant to notice. The message is
+bounded by construction (three constraints at 44 characters), so it is now
+quoted whole. Transcripts regenerated.
+
+**Verified after:** 132 tests pass (18 new), 21 documented claims re-verify,
+clean 0.953064 / Hit@10 1.0000, `evaluator/` and `data/` untouched.
+
+**Result: adopted.** Queue item (5) of 12 complete.
