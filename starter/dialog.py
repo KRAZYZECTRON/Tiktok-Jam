@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import re
 
+from . import question as _question
 from .state import DialogState
 
 # Mirrors evaluator.local_evaluator.MAX_TURNS.
@@ -209,6 +210,17 @@ def _next_attribute(state: DialogState) -> str | None:
     """
     if state.turn >= MAX_TURNS:
         return None  # no turn after this one can be scored; don't spend an ask.
+    # Question-value estimation, off by default (TJ_QVALUE=1). It computes the
+    # expected reduction in the consistent set for each attribute and asks the
+    # argmax. Measured and shipped disabled -- see tools/question_value.py and
+    # SCOREBOARD.md: it agrees with "other" on essentially every turn, because
+    # the simulator caps disclosure at two constraints and "other" matches any
+    # of them, so no question can extract faster. The estimator is right; the
+    # benchmark cannot reward it.
+    if _question.ENABLED:
+        chosen = _question.best_attribute(state)
+        if chosen is not None:
+            return chosen
     if "other" not in state.exhausted_attributes:
         return "other"
     for attribute in PROBE_ORDER:

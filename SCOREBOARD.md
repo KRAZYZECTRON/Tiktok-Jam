@@ -630,6 +630,56 @@ every split is computed by aggregating subsets of that cached list — one run p
 config, then unlimited splits for free. The same random partitions are reused
 across every choice, so the comparison between choices is like-for-like.
 
+## Question-value estimation: the mechanism argument, now measured
+
+`docs/competition_specification.md` names "adaptive clarification and
+question-value estimation" as an Innovation Direction, and this file used to
+dismiss it as **"not implementable"**. That was wrong, and the correction is
+worth more than the feature.
+
+`starter/question.py` is a genuine expected-posterior-size estimator. The
+shopper's reply is fully determined -- `customer_reply` takes the first two
+undisclosed card slots matching the asked attribute -- and `simcard.py`
+reconstructs any product's card. So for the set C still consistent with
+everything disclosed, partition C by the reply each member *would* give and
+
+    E[|C'| | a] = sum over groups g of (|g|/|C|) * |g|
+
+is exact, not sampled. The value of asking `a` is `|C| - E[|C'| | a]`.
+
+| measurement | result |
+|---|---|
+| `"other"` is the argmax, at the runtime's 400-candidate cap | **1000 / 1000 turns (100%)** |
+| `"other"` is the argmax, uncapped over the whole consistent set | 990 / 1000 (99.0%) |
+| mean shortfall of `"other"` against the argmax, uncapped | -0.62 products |
+| full evaluator with `TJ_QVALUE=1` | **0.952214 vs 0.953064 -- costs 0.00085** |
+
+**The 1% is one information state, not ten findings.** All ten uncapped wins are
+turn 1, all report a consistent set of exactly 7017 and a gain of exactly 62.424
+-- ten sessions that happen to share an opening constraint, so they present the
+estimator with an identical problem. It is a single case counted ten times, and
+62 products out of 7017 is 0.9% of the set, at the one turn where the agent is
+holding its answer back anyway and the set collapses to a median of 1 by turn 3
+regardless.
+
+**Why enabling it still costs something.** At the cap the estimator agrees with
+`"other"` on every turn, yet the score moves. The divergence is not in the
+argmax over the whole catalog: at runtime `consistent_slots` holds the previous
+turn's *pooled* consistent set, a smaller and differently ordered sample, and it
+matters most once `"other"` is exhausted -- where the shipped `PROBE_ORDER`
+and the estimator's ranking disagree. The estimator is choosing well on a
+sample; the fixed order happens to choose slightly better on the full problem.
+
+**Result: correct, and rejected on its own measurement.** Fourth capability in
+this project shipped disabled with a number attached, after the LLM re-ranker,
+the dense leg, and the global popularity prior. The mechanism argument in
+`NOTES_ranking.md` was right all along; what it lacked was the estimator that
+proves it, and "we measured the alternative and it lost by 0.00085" is a much
+stronger sentence than "no smarter question is possible".
+
+Reproduce: `py -m tools.question_value` (both halves, ~3 min), or
+`py -m tools.question_value --no-score --uncapped` for the agreement table.
+
 ## Tested and rejected
 
 Recorded so nobody spends hours re-deriving them. All remain exposed as
@@ -640,7 +690,7 @@ tunables at inert defaults, so each is one env var away from reproducing.
 | **Unbounded confidence gating** | 0.8712 → 0.8668 at best | Hold back while the *consistent set* is large. MRR rises (0.661 → 0.773) but Hit@10 collapses to 0.90: a session whose set never shrinks never answers at all. Superseded by the bounded version below, which fixes exactly this. `TJ_CONFIDENCE`, disabled. |
 | ~~**Answer early when already certain**~~ | **later adopted** | Rejected at MRR 0.89 on a split-half sign flip (−0.0026 / +0.0087), then re-tested and adopted at MRR 0.94: +0.0040 / +0.0034 with MRR identical on and off. The idea was never wrong; the ranker was not yet good enough for a small consistent set to mean rank 1. See the coupling note above. |
 | **Semicolon-tolerant card matching** | 0.9122 → 0.9096 | Strict equality rejects the true target on 6.7% of scored turns, because one card slot can contain "; " internally and the splitter shatters it. Fixing it made things **worse**, twice — via containment (0.9090) and via substring tolerance (0.9096). The strict filter's failure mode is benign: when it rejects everyone the bonus goes inert and other signals rank. A looser filter instead manufactures false positives. A real bug that is better left unfixed. |
-| **Adaptive probing** | not implementable | The obvious next idea, and it cannot work. `customer_reply` caps disclosure at `[:2]` per reply and `"other"` already returns the first two undisclosed *in card order* — the agent asks `"other"` on turns 1-3 in 200/200 sessions. Disclosure is already at the evaluator's maximum rate; no smarter question extracts faster. Measuring this before building it saved the work. |
+| **Adaptive probing** | **built and measured: -0.00085** | **This row used to say "not implementable", and that was wrong.** It is implementable, it just does not pay. `starter/question.py` is a real expected-posterior-size estimator: for each attribute it partitions the still-consistent set by the reply each candidate *would* give and scores `|C| - E[|C'|]`. Over all 1000 scored turns of the public set, `"other"` is the argmax **100%** of the time at the runtime's 400-candidate cap and **99.0%** uncapped. Enabled end to end it costs **-0.00085**. The `[:2]` cap is the mechanism, exactly as argued — but the argument is now a measurement, and the honest phrasing is "measured and rejected", not "impossible". `TJ_QVALUE=1`, disabled. |
 | **Popularity prior, applied globally** | 0.8629 → 0.8488 at best non-zero | **Superseded — see below. The signal was right, the placement was wrong.** | The target *is* a real purchase, so this sounded well-founded. It drives MTTC down hard (2.47 → 1.91) but knocks Hit@10 off 1.0000 and MRR with it: a prior on "what people buy", competing with evidence about "what this shopper described" rather than complementing it. |
 | **Profile-rating personalization** | 0.8629 → 0.8555 at worst | Matching the catalog's `average_rating` to the profile's `average_prior_rating`. A named innovation direction in the spec, so worth testing, but `average_prior_rating` describes the shopper's rating *habits*, not a preference over quality — no information about which item they bought, and it dilutes evidence that does. |
 | **Length-scaled phrase bonus** | flat to −0.001 | A longer verbatim match ought to be less coincidental, but containment is already near-binary here. |

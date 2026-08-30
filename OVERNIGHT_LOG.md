@@ -917,3 +917,75 @@ quoted whole. Transcripts regenerated.
 clean 0.953064 / Hit@10 1.0000, `evaluator/` and `data/` untouched.
 
 **Result: adopted.** Queue item (5) of 12 complete.
+
+---
+
+## Iteration 17 — question-value estimation, and a claim of ours that was too strong
+
+**Chosen because** `docs/competition_specification.md` names "adaptive
+clarification and question-value estimation" as an Innovation Direction, and
+this repo dismissed it in two places as **"not implementable"**. That is a
+stronger claim than we had earned, and it is the kind a judge can check.
+
+**Built.** `starter/question.py` is a real expected-posterior-size estimator,
+not a heuristic with the name attached. `customer_reply` is deterministic --
+first two undisclosed card slots matching the asked attribute -- and `simcard`
+reconstructs any product's card, so for the consistent set C we can partition by
+the reply each member *would* give and compute
+
+    E[|C'| | a] = sum over groups g of (|g|/|C|) * |g|
+
+exactly rather than by sampling. Value of asking `a` is `|C| - E[|C'| | a]`. The
+"no preference for that" reply falls out for free as its own group, which is
+right: absence is informative.
+
+**Measured, and it loses.**
+
+| | |
+|---|---|
+| `"other"` is the argmax, at the runtime's 400-candidate cap | **1000/1000 turns** |
+| `"other"` is the argmax, uncapped | 990/1000 (99.0%) |
+| full evaluator, `TJ_QVALUE=1` | **0.952214 vs 0.953064 — costs 0.00085** |
+
+**The measurement nearly misled me, twice.**
+
+First run, capped, on 20 sessions: 97% agreement with three `feature` wins.
+Full run capped: **100%**, zero wins. The cap was doing the work -- and
+`consistent[:400]` is the first 400 in catalog order, a *biased* slice, not a
+random sample. Reporting only the capped number would have overstated how
+settled this is, so `--uncapped` now measures the idealised estimator too, and
+both are published.
+
+Second: the ten uncapped wins are **one information state, not ten findings**.
+Every one is turn 1 with a consistent set of exactly 7017 and a gain of exactly
+62.424 -- ten sessions sharing an opening constraint, so the estimator sees an
+identical problem ten times. Counting them as ten independent results would
+have inflated a 0.9%-of-set effect at the one turn where the agent holds its
+answer back anyway.
+
+**Why enabling it still costs 0.00085 when the argmax agrees everywhere.** At
+runtime `consistent_slots` is the previous turn's *pooled* consistent set -- a
+smaller, differently ordered sample than the tool's catalog-wide one -- and the
+divergence bites once `"other"` is exhausted, where the shipped `PROBE_ORDER`
+and the estimator's ranking disagree. The estimator chooses well on a sample;
+the fixed order happens to choose slightly better on the full problem.
+
+**Corrected in two places.** `SCOREBOARD.md`'s rejected table said "not
+implementable"; it now says "built and measured: -0.00085" with the numbers, and
+`NOTES_ranking.md` carries a dated correction. *Not worth doing* is not *not
+implementable*, and against a spec that names this as an Innovation Direction
+the difference is the difference between a measured negative and an unexamined
+assertion.
+
+Fourth capability shipped disabled with a number, after the LLM re-ranker, the
+dense leg and the global popularity prior.
+
+**Verified after:** 162 tests pass (30 new, including a check that the copied
+`classify_constraint` still matches the evaluator's on 15 inputs), 21 documented
+claims re-verify, clean **0.953064 / Hit@10 1.0000** with the gate off,
+`evaluator/` and `data/` untouched.
+
+The drift scanner earned its keep again: adding 30 tests immediately failed the
+run over `README.md` and `REPORT.md` still saying 132.
+
+**Result: adopted, shipped disabled.** Queue item (6) of 12 complete.

@@ -255,7 +255,7 @@ same code would carry signal.
 - `re`, `hashlib`, `json`, `math`, `dataclasses`, `collections`
 
 **Development tools**
-- VS Code · Claude Code · Git / GitHub · pytest (132 tests) · Windows 11
+- VS Code · Claude Code · Git / GitHub · pytest (162 tests) · Windows 11
 
 **APIs and models**
 - **`qwen2.5:7b-instruct` via local Ollama** (`http://127.0.0.1:11434`), used for

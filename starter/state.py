@@ -50,6 +50,11 @@ class DialogState:
     # so explanations are built from the same strings the ranker matched on
     # rather than from a second, possibly divergent, parse of the dialog.
     disclosed_values: tuple = ()
+    # Reconstructed card slots of the candidates still fully consistent, capped.
+    # Written by ranking.rank(); read by question.best_attribute() on the NEXT
+    # turn, which is the correct information state -- the question for turn N is
+    # chosen before turn N's retrieval runs. Empty unless TJ_QVALUE=1.
+    consistent_slots: tuple = ()
     # --- written by orchestrate.select(), for inspection and transcripts ---
     # Which of CLARIFY / IDENTIFY / EXPLORE this turn ran, and why. Nothing in
     # the pipeline reads these back; they exist so the agent's own reasoning is

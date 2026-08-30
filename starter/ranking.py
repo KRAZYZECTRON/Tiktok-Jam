@@ -27,6 +27,7 @@ import tempfile
 from collections import Counter
 from pathlib import Path
 
+from . import question as _question
 from .simcard import card_slots, clean_constraint
 from .state import Candidate, DialogState
 
@@ -806,6 +807,16 @@ def rank(candidates: list[Candidate], state: DialogState) -> list[Candidate]:
     # early on it. Letting partial evidence inflate it would make the agent
     # answer sooner on weaker grounds, which is the opposite of the point.
     state.card_consistent = len(consistent) if disclosed else len(candidates)
+
+    # Question-value estimation needs the consistent candidates' reconstructed
+    # cards, not just how many there are. Gated so the shipped path pays
+    # nothing: this is a list build over up to a few hundred tuples per turn.
+    if _question.ENABLED:
+        pool = consistent if disclosed else {c.parent_asin for c in candidates}
+        state.consistent_slots = tuple(
+            catalog.card.get(asin, ())
+            for asin in list(pool)[: _question.MAX_CANDIDATES]
+        )
 
     # retrieve() returns its pool already in BM25 order, so a candidate's index
     # *is* its retrieval rank.
