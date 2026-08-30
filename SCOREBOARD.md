@@ -50,6 +50,72 @@ Much of the MTTC gap is structural rather than addressable: all 30
 evaluator's override gate, and all 10 `boundary` sessions lose a turn to the
 one-shot deflection.
 
+## Every number above is in-sample — `py -m tools.holdout_synth`
+
+The table at the top of this file, the split-halves in `tools/holdout_check.py`,
+and the 200 random splits in `tools/stability.py` all score the **same 200
+sessions the tunables were chosen on**. Splitting them varies which sessions are
+measured; it never varies the fact that all 200 targets were visible while every
+threshold, bonus and hold-back rule was being picked. None of those tools can
+see overfitting to the target set itself, and the hidden 800 are drawn from
+products we have never scored against.
+
+`tools/holdout_synth.py` closes that. The evaluator derives a session's entire
+hidden state from the target product plus the sample id, so a valid session can
+be synthesised for any of the other 49,800 catalog products and scored by
+`evaluate()` unmodified. This rests on `starter/simcard.py` reconstructing the
+card correctly for products nobody tuned against — `verify_claims` now checks
+that across **all 50,000** products rather than the 200 public targets, and it
+holds with zero mismatches.
+
+| | score | Hit@10 | MRR | MTTC |
+|---|---|---|---|---|
+| public 200 (in-sample) | **0.953064** | 1.0000 | 0.9465 | 2.545 |
+| unseen targets, seed 1 | 0.909297 | 0.9850 | 0.8413 | 2.780 |
+| unseen targets, seed 2 | 0.922477 | 0.9850 | 0.8729 | 2.595 |
+| unseen targets, seed 3 | 0.927484 | 0.9850 | 0.8939 | 2.660 |
+| unseen targets, seed 4 | 0.916536 | 0.9800 | 0.8721 | 2.755 |
+| **mean of four draws** | **0.918948** | 0.9838 | 0.8701 | 2.698 |
+
+**−0.034, in the same direction on every draw**, spread 0.018. Treat 0.919 as
+the honest expectation and 0.953 as the ceiling. The caveat cuts both ways: the
+real sessions come from the 5-core leave-last-out split, so their targets have
+review history, while these are drawn uniformly from the catalog — 8 of 200
+synthetic targets have fewer than four card slots where all 200 public ones have
+four. Part of the gap is that tail rather than overfitting.
+
+### What the gap is actually made of
+
+Of the 44 unseen sessions on seed 1 that did not come back at rank 1, replaying
+each with `rank()` instrumented gives:
+
+| cause | n | meaning |
+|---|---|---|
+| ambiguous | 31 | the card does not single the target out; no ranker could |
+| **EARLY** | **8** | answered while 13–48 candidates were still consistent |
+| **EXTRACT** | **5** | target in the pool, but the consistent set was **empty** |
+| POOL | **0** | retrieval never lost the target |
+
+Retrieval is not the problem — a useful negative result, since pool size was the
+obvious suspect. The other two are:
+
+- **EARLY.** `HOLD_UNTIL_TURN=2` is a safety net: from turn 3 the agent answers
+  whatever the state. On the public set the shopper has usually disclosed enough
+  by then. On unseen targets it often has not, and we bank a rank drawn from a
+  set of 13 to 48. The trade is quantifiable — one more turn costs
+  `0.20 × 1/10 ÷ 200 = 0.0001` of overall score, while lifting one session's
+  reciprocal rank from 1/4 to 1 gains `0.30 × 0.75 ÷ 200 = 0.0011`, about 11:1
+  in favour of waiting *whenever the extra turn actually narrows the set*. The
+  unbounded version of that bet is the one that collapsed Hit@10 to 0.90, so
+  this is a re-tune of the bound, not a removal of it.
+- **EXTRACT.** Both card tiers are conjunctive. One spuriously extracted
+  constraint and a candidate matching the other three exactly scores identically
+  to one matching none — the identification signal, worth +0.084, switches off
+  completely and the order falls back to RRF. `BONUS_CARD_PARTIAL` is the graded
+  third tier built for this; see below.
+
+Neither failure was visible on the public 200, where the equivalents are 2 and 0.
+
 ## Retired: the recall@500 "ceiling"
 
 An earlier version of this file said the 500-candidate pool capped Hit@10 at
@@ -454,7 +520,14 @@ Catalog strings are now pooled at load. 70% of intent-card slots and 40% of
 field strings are exact duplicates across products; sharing one instance per
 distinct string is behaviourally free and saves ~20 MB (255 -> 235 MB).
 
-## What is left, and why it is mostly not addressable
+## What is left, and why it is mostly not addressable *on the public set*
+
+> **Corrected.** This section used to end at "not addressable", full stop. That
+> conclusion was drawn entirely from the 200 sessions the agent was tuned on,
+> and it does not survive contact with targets it has not seen: on unseen
+> targets **34% of the failures are defects rather than ties** (50 of 148 across
+> four draws), against 12% here. "Mostly not addressable" describes the public
+> set, not the agent. See the held-out section near the top of this file.
 
 183 of 200 sessions land at rank 1. Of the 17 that do not: **15 are genuine
 ties** where every rival is equally consistent with everything the shopper
@@ -539,12 +612,18 @@ tunables at inert defaults, so each is one env var away from reproducing.
 | **RRF mix weights** | ±0.004 | Depends only on the ratio, and every ratio lands within noise of 1:1. |
 | **Phrase-count cap** | exactly 0.000 | Inert — no session ever discloses more than three phrases. |
 | **LLM re-rank (stage B)** | −0.014 | See its own section above. |
+| **Graded card consistency** | held-out 0.9198 → 0.9190 → 0.9124 | The first idea tested against unseen targets rather than the visible 200, and the first rejected on that evidence. Both card tiers are conjunctive, so one mis-extracted constraint takes a candidate matching the other three from full credit to none — `BONUS_CARD_PARTIAL` graded it by the fraction matched instead. Monotonically worse on held-out at 0.02, 0.04 and 0.08, flat on public until it regresses. The premise was backwards: an empty consistent set usually means a constraint was mis-extracted, and a mis-extracted constraint is one the *target* fails while rivals pass, so partial agreement is anti-correlated with being the target. Conjunctive-or-nothing is the point, not a limitation. `TJ_B_CARD_PARTIAL`, at 0. |
 
 The pattern worth noticing: **every idea that worked came from a property of
 how the benchmark constructs its queries** (verbatim phrases, verbatim
 categories, the stale-query signal), and **every idea that failed was a generic
 IR heuristic** (popularity, length weighting, fusion-parameter tuning). On a
 simulator-generated benchmark, mechanism beats intuition.
+
+The graded-card row is the first exception in either direction, and it is worth
+naming: it *was* mechanism-derived, aimed at a failure mode measured rather than
+imagined, and it still lost. Being derived from the mechanism makes a hypothesis
+worth testing, not right.
 
 ## Weight sensitivity (overfit check)
 

@@ -277,6 +277,40 @@ BONUS_CARD_FUSED = _tunable("TJ_B_CARD_FUSED", 0.1)
 # verbatim wording is unchanged. This tier only decides who wins when nobody
 # matches exactly.
 BONUS_CARD_FUZZY = _tunable("TJ_B_CARD_FUZZY", 0.04)
+# A third tier, strictly below both, for when *nobody* matches on every
+# constraint. Both tiers above are conjunctive: one spurious extracted
+# constraint, and a candidate matching the other three exactly scores the same
+# as one matching none. On the public set that never bites, because extraction
+# there is clean. On unseen targets it does -- `tools/holdout_synth.py` finds
+# five sessions per two hundred where the target's card uniquely identifies it,
+# the target is sitting in the pool, and the consistent set is *empty*, so the
+# whole identification signal contributes nothing and the order falls back to
+# RRF.
+#
+# Graded by the fraction of disclosed constraints a candidate does match, so
+# partial evidence orders candidates instead of being discarded. Layered the way
+# everything else here is: strictly below the fuzzy tier, deciding only who wins
+# when both tiers above are silent.
+#
+# TESTED AND REJECTED -- shipped at 0. Swept against the held-out draws, which
+# is where the failure it targets actually lives:
+#
+#   value   public      held-out mean (3 draws)
+#   0       0.953064    0.919753   <- shipped
+#   0.02    0.953064    0.919419
+#   0.04    0.953064    0.918967
+#   0.08    0.953029    0.912432
+#
+# Monotonically worse, so this is a direction rather than a noisy plateau. The
+# reason is the interesting part, and it inverts the premise: when the
+# consistent set is empty it is usually because a constraint was mis-extracted,
+# and a mis-extracted constraint is one the TARGET does not match while plenty
+# of rivals do. Partial agreement in this mechanism is anti-correlated with
+# being the target, so grading it promotes exactly the wrong candidates.
+# Conjunctive-or-nothing is not a limitation here, it is the point.
+#
+# Kept at 0 rather than deleted so the result stays reproducible.
+BONUS_CARD_PARTIAL = _tunable("TJ_B_CARD_PARTIAL", 0.0)
 # Fraction of a disclosed constraint's tokens that must appear in a card slot
 # for it to count as an approximate match.
 # 0.75, swept against the paraphrase levels rather than the clean set (the clean
@@ -727,19 +761,27 @@ def rank(candidates: list[Candidate], state: DialogState) -> list[Candidate]:
 
     consistent: set[str] = set()
     near_consistent: set[str] = set()
+    partial_match: dict[str, float] = {}
     if disclosed:
         disclosed_tokens = [set(_terms(value)) for value in disclosed]
         for candidate in candidates:
             slots = catalog.card.get(candidate.parent_asin, ())
             if not slots:
                 continue
-            if all(value in slots for value in disclosed):
+            hits = sum(1 for value in disclosed if value in slots)
+            if hits == len(disclosed):
                 consistent.add(candidate.parent_asin)
             elif BONUS_CARD_FUZZY and all(
                 _slot_overlap(tokens, candidate.parent_asin, catalog) >= FUZZY_MIN_OVERLAP
                 for tokens in disclosed_tokens
             ):
                 near_consistent.add(candidate.parent_asin)
+            elif hits:
+                partial_match[candidate.parent_asin] = hits / len(disclosed)
+    # Deliberately counts only FULL matches, unchanged by the partial tier
+    # above: this is the agent's confidence signal, and orchestrate.py answers
+    # early on it. Letting partial evidence inflate it would make the agent
+    # answer sooner on weaker grounds, which is the opposite of the point.
     state.card_consistent = len(consistent) if disclosed else len(candidates)
 
     # retrieve() returns its pool already in BM25 order, so a candidate's index
@@ -770,6 +812,8 @@ def rank(candidates: list[Candidate], state: DialogState) -> list[Candidate]:
                 candidate.score += BONUS_CARD_FUSED
             elif candidate.parent_asin in near_consistent:
                 candidate.score += BONUS_CARD_FUZZY
+            elif BONUS_CARD_PARTIAL:
+                candidate.score += BONUS_CARD_PARTIAL * partial_match.get(candidate.parent_asin, 0.0)
             if candidate.parent_asin in cat_hit:
                 candidate.score += BONUS_CAT_FUSED
             candidate.score += BONUS_PHRASE_FUSED * phrase_n.get(candidate.parent_asin, 0)
