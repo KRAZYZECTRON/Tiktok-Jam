@@ -676,3 +676,51 @@ the current MRR (0.9465, not 0.9438).
 and `data/` untouched. New file only; no code path changed.
 
 **Result: adopted.** Queue item (1) of 12 complete.
+
+---
+
+## Iteration 13 — the Devpost submission text
+
+**Chosen because** it is the second of three hard deliverables and the one that
+is read first. Track 4's deliverables require a written project description
+covering how the solution addresses the problem statement plus development
+tools, APIs, libraries, and datasets used. None of that existed.
+
+**Written:** `DEVPOST.md`, structured so each `##` heading maps to a Devpost
+form field and can be pasted directly.
+
+**The framing decision.** Technical Execution is 35% but Innovation & Problem
+Insight and Impact & Relevance are 20% each — 40% combined, and both are scored
+on whether the reader believes we *understood* the problem rather than on the
+number. So the document opens on the baseline's actual defect (`ask_attribute:
+None` means every turn after the first re-queries on filler, so turn 1 is the
+only turn that can hit) and moves from there to the invertible simulator. The
+score table is third, not first.
+
+**Three claims were checked against live output before writing them down**,
+rather than copied from README.md, which is known stale in six places:
+
+- `context_demo --sample public_0002` really does run CLARIFY at **203**
+  consistent candidates and switch to IDENTIFY at **18**, and the turn-3
+  override really does erase the `feature` slot while keeping both `material`
+  slots. Re-run tonight; all three match.
+- Public MRR is **0.9465** and intent_override MRR is **0.9075**, taken from
+  `results.json` rather than from the docs.
+
+**One more stale figure found while drafting.** `README.md` says the hold-back
+runs "until four constraints are disclosed". `MIN_DISCLOSED` has been **3** since
+the 29 Aug re-tune against the stronger ranker, and `agent.py` says so. That is
+a seventh entry for the queue-item-(4) staleness sweep, and it was found by
+writing the disclosure paragraph rather than by grepping — the disclosures are
+the part of the docs a judge is most likely to test against the code, so an
+error there costs more than the same error in a results table.
+
+**Disclosures are a section, not a footnote.** Both metric-aware behaviours are
+stated with their kill switches, and the rotation disclosure spells out that the
+evaluator records rank *within the ten returned*, so paging inflates MRR as well
+as Hit@10. If a judge is going to find that, they should find it in our own text.
+
+**Verified after:** 102 tests pass, 20 documented claims re-verify, `evaluator/`
+and `data/` untouched. New file only; no code path changed.
+
+**Result: adopted.** Queue item (2) of 12 complete.
