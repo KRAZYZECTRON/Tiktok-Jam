@@ -1248,3 +1248,60 @@ that did not exist.
 only.
 
 **Result: adopted.** Queue item (11) complete. Only the final pass remains.
+
+---
+
+## Iteration 22 — final pass, and a correction to my own reporting
+
+**Chosen because** it is the last queue item: fold everything from (5)-(10) into
+the two documents a judge reads, then stop.
+
+**Folded in.** `REPORT.md` §3 now carries component matching as a fourth
+load-bearing decision and the self-explaining messages; §4 lists the
+question-value estimator as a third measured-and-disabled capability with its
+mechanism; §6 leads its defect discussion with the probe's zero-VOCAB result;
+§9 marks two of its four "next steps" as closed and adds the `HOLD_UNTIL_TURN`
+refusal as the thing we would explicitly *not* do. `DEVPOST.md` gains the two
+Innovation Directions in the pillar table, "four capabilities disabled" instead
+of three, the diagnosis-deleted-the-plan story, the gate refusal, and a
+learnings paragraph on the public set pointing the wrong way twice in one night.
+
+**A correction I owe the record.** Item (8) asked for `robustness --seeds 5`
+after the component change. In iteration 18 I ran **three** seeds, and reported
+that truncation improved 0.8553 -> 0.8588 and paraphrase 0.8906 -> 0.8932. The
+five-seed run says otherwise:
+
+| level | 5 seeds, before | 5 seeds, after |
+|---|---|---|
+| truncated | 0.8553 | **0.8571** (+0.0018) |
+| light paraphrase | 0.8906 | **0.8906** (0.0000) |
+| casing | 0.9304 | 0.9304 |
+| adversarial | 0.8897 | 0.8899 |
+
+**Both "improvements" were seed noise.** The honest statement is that component
+matching is **robustness-neutral** — it buys held-out accuracy without spending
+any of the paraphrase margin, which is a perfectly good result and is not the
+one I reported. Three seeds against spreads of 0.02 was never enough to claim a
+0.003 movement, and I made the same mistake this project already documented when
+it caught itself quoting single-seed robustness figures as measurements.
+
+Docs corrected to the five-seed numbers throughout.
+
+**Final state of `main`:**
+
+| | |
+|---|---|
+| public | **0.953064** · Hit@10 **1.0000** · MRR 0.946548 · MTTC 2.545 |
+| held out, 4 draws | **0.921214** (was 0.918948 at the start of the night) |
+| tests | **167** |
+| documented claims re-verified | **21**, including a documentation-drift scan |
+| `evaluator/` and `data/` | untouched |
+
+**Twelve queue items, eleven iterations, three adopted changes, four recorded
+refusals.** The refusals are the part worth keeping: a synonym lexicon deleted
+by diagnosis before it was built, a hold-back change that passed held-out and
+failed adversarial, two bonus terms that measured inert on public and turned out
+to buy a hit on unseen targets, and a question-value estimator that was correct
+and still lost.
+
+**Result: complete.** The loop stops here.

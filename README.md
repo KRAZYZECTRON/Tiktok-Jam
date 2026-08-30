@@ -305,9 +305,9 @@ shopper's phrasing — never the ground truth — and re-scores:
 | casing and punctuation drift | 0.9304 | 0.003 | 1.0000 |
 | filler + reworded carrier | 0.9292 | 0.011 | 0.9900 |
 | light lexical paraphrase | 0.8906 | 0.012 | 0.9800 |
-| stray interjections + foreign fragment | 0.9210 | 0.011 | 0.9900 |
-| adversarial punctuation / decoy colon / FTS metachars | 0.8897 | 0.016 | 0.9750 |
-| truncated mid-sentence | 0.8553 | 0.022 | 0.9300 |
+| stray interjections + foreign fragment | 0.9213 | 0.010 | 0.9900 |
+| adversarial punctuation / decoy colon / FTS metachars | 0.8899 | 0.016 | 0.9750 |
+| truncated mid-sentence | 0.8571 | 0.022 | 0.9300 |
 
 Five perturbation seeds per level; "spread" is max−min across them. Earlier
 revisions of this file quoted **single-seed** figures — the medium number cited
@@ -382,7 +382,7 @@ Robustness here was free rather than profitable, which is the honest claim.
   harness). Catalog strings are pooled at load — 70% of intent-card slots and
   40% of field strings are exact duplicates across products, so sharing one
   instance each is free and saves ~20 MB.
-- **Truncated input is our weakest case** (0.8553). It is explicitly outside the
+- **Truncated input is our weakest case** (0.8571). It is explicitly outside the
   spec's allowed assumptions — "inputs are pre-cleaned text strings" — so it is
   measured for honesty rather than defended. A real deployment would need it.
 - **Malformed input is handled but was not, until it was tested.** A non-string
@@ -407,6 +407,8 @@ Robustness here was free rather than profitable, which is the honest claim.
 | `tools/holdout_synth.py` | scores on catalog products the tuning never saw |
 | `tools/robustness.py` | seven perturbation styles, multi-seed |
 | `tools/stability.py` | repeated random split-halves — which tunables were luck |
+| `tools/extract_probe.py` | why the consistent set is empty — the diagnosis that ruled out a synonym lexicon |
+| `tools/question_value.py` | is asking `"other"` really optimal? measured, and it is |
 | `tools/` (rest) | `attribution.py`, `demo_transcripts.py`, `context_demo.py`, `perf.py`, `holdout_check.py`, `rank_sweep.py`, `rank_probe.py`, `quick_eval.py` |
 | `SCOREBOARD.md` | every measurement, including retired claims |
 | `NOTES_*.md` | per-seat working logs — what was tried and why |

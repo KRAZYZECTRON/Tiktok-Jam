@@ -99,6 +99,8 @@ intent override, and boundary.
 | **II. Dynamic state machine** | `dialog.py::update_state` | Slots accumulate across turns with collision-safe keys; an intent override **erases** the opening preference while keeping constraints disclosed after it, because those are still true |
 | **II. Proactive guidance / over-generality cutoff** | `agent.py`, `ranking.py::rank` | `rank()` reports how many pooled candidates remain consistent with everything disclosed. While that set is large the agent **withholds the list and asks instead** — a literal retrieval cutoff under candidate-pool overload |
 | **III. Personalized context distillation** | `profile.py`, `dialog.py` | Short-term: each reply distilled into typed slots and a composed query. Long-term: `ProfileMemory` lives on the Agent, not the session, and accumulates across sessions sharing a profile signature |
+| **II. Transparent explanations** | `agent.py::_explanation` | The message names the disclosed constraints the top result actually satisfies — built from the same intent-card slots the ranker scored on, so the explanation cannot disagree with the ranking. No card evidence means it says nothing rather than inventing a reason |
+| **III. Question-value estimation** | `question.py` | An exact expected-posterior-size criterion over the consistent set. **Built, measured, shipped off** — `"other"` is the estimator's own argmax on 1000/1000 turns |
 | **III. Adaptive orchestration** | `orchestrate.py` | An explicit per-turn policy — **CLARIFY** (ask, return nothing), **IDENTIFY** (answer from the head), **EXPLORE** (answer from a deeper page) — selected from measured state, with the reason recorded |
 | **IV. Coverage / Precision / Efficiency** | `evaluator/` | Hit@10 1.0000 · MRR 0.9465 · MTTC 2.545 |
 
@@ -184,6 +186,26 @@ that uniquely identifies the target. On the public 200 that count is 3 of 17.
 Those 50 are **defects, not ambiguity**, and they were invisible until there was
 a set we had not tuned on.
 
+**We planned a synonym lexicon and the diagnosis deleted it.** The largest
+remaining gap was sessions where the target fails its own intent card. The
+obvious fix was to mine colour/material/fabric synonyms from the catalog so the
+matcher could bridge a wording gap. Before building it we wrote
+`tools/extract_probe.py` to size the opportunity — and over 800 unseen sessions
+it found **zero** cases a lexicon would fix. In hindsight that follows from the
+premise the whole system rests on: the shopper's constraints are verbatim
+strings from the product's own metadata, so the two cannot use different words.
+The real defect was mundane and invisible until we looked — a `"; "` split
+shattering one card slot into pieces that match nothing. **An hour of diagnosis
+deleted a day of building the wrong thing.**
+
+**The measurement that told us not to ship.** Raising the hold-back by one turn
+gains +0.0037 on unseen targets and +0.0008 on the public set — better evidence
+than several changes we did adopt. It also costs **0.080** under simple
+casing-and-punctuation drift, dropping Hit@10 from 1.0000 to 0.8900. Held-out
+draws vary the *target*, but every one of them uses verbatim wording, so they
+cannot see a robustness cliff. We had written the gate days earlier and never
+run it; running it is the only reason this is not in the submission.
+
 **Two debugging cycles lost to invisible bytes.** Two literal `0x08` backspace
 characters written into a regex by a heredoc escape, where `\b` became a control
 character. The pattern matched nothing and looked perfectly correct in every text
@@ -191,9 +213,10 @@ listing. Only `cat -A` showed it.
 
 ## Accomplishments we're proud of
 
-**We shipped three capabilities disabled, each with a number attached.** The LLM
+**We shipped four capabilities disabled, each with a number attached.** The LLM
 re-ranker costs −0.014 under rank fusion. Dense retrieval costs −0.027 and
-surrenders a maxed Hit@10. A global popularity prior lost outright. Each one is
+surrenders a maxed Hit@10. A question-value estimator costs −0.00085. A global
+popularity prior lost outright. Each one is
 a claim the report can make with evidence instead of a hope — and the third one
 came back later as a **+0.018 gain** once we realised the signal was right and
 only its *placement* was wrong.
@@ -225,6 +248,13 @@ parameter tuning. Being derived from the mechanism makes a hypothesis worth
 testing, not right: our one mechanism-derived idea that still lost is recorded
 too.
 
+**A saturated benchmark can point the wrong way.** Twice in one night the
+public set disagreed with the held-out set, and the held-out set was right both
+times: component matching is worth +0.0023 unseen and *bit-identical* on public,
+and removing a bonus term scores *higher* on public while costing a hit on
+unseen targets. Once Hit@10 is maxed, the set you tuned on is not merely
+uninformative — on questions worth ±0.002 it is occasionally misleading.
+
 **Measure before you build.** We nearly built adaptive question selection before
 checking whether it could help. It cannot here: the simulator caps disclosure at
 two constraints per reply and `"other"` already returns the first two undisclosed
@@ -248,7 +278,7 @@ same code would carry signal.
    switches identification off entirely. The fix is a third tier that fires
    *only* when the strict and fuzzy tiers both return empty.
 2. **Paraphrase and truncation robustness.** Truncated input is our weakest case
-   at 0.8553. It sits outside the spec's stated assumptions, so we measured it
+   at 0.8571. It sits outside the spec's stated assumptions, so we measured it
    rather than defended it — but a real deployment has to handle a half-typed
    message.
 3. **Real question-value estimation**, which this benchmark cannot reward but a

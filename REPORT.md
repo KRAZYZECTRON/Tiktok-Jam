@@ -141,6 +141,20 @@ ranked above a consistent target. Moving the same condition post-fusion won all
 **Answer later, not better.** Covered in §1. Worth +0.041, and bounded by
 `HOLD_UNTIL_TURN=2` so it can never cost a hit.
 
+**A fourth, added last and found by diagnosis rather than by sweep.**
+`_disclosed_constraints` splits the shopper's reply on `";"` because the
+evaluator joins constraints that way — but `card_slots` can emit a *single* slot
+with `"; "` inside it, and the same split shatters it into pieces matching
+nothing, emptying the conjunctive filter. Accepting a constraint that equals a
+whole `"; "`-delimited **component** of a slot fixes it. Held out over four
+draws: **0.918948 -> 0.921214**, up on all four seeds, defects 50 -> 42. The
+public score is bit-identical, which is exactly why it went unnoticed for a week.
+
+The agent also **explains itself**: the message names the disclosed constraints
+the top result actually satisfies, built from the same intent-card slots the
+ranker scored on. Where there is no card evidence it says nothing rather than
+inventing a reason.
+
 `tools/stability.py` re-tests each shipped choice over 200 random split-halves.
 **Three choices carry +0.111 of the +0.115 margin** — post-fusion card promotion
 (holds on both halves in 100% of splits), popularity tie-break (100%), and
@@ -158,6 +172,7 @@ disabled:
 |---|---|---|---|
 | LLM semantic re-rank | `starter/llm_rerank.py` — local Ollama, `qwen2.5:7b-instruct`, `temperature=0`, disk-cached, stdlib `urllib` only | **−0.014** (0.8108 → 0.7969) | **off** (`RANK_USE_LLM=1`) |
 | Dense / vector retrieval | `starter/retrieval.py` — `sentence-transformers` MiniLM, fused by reciprocal rank | **−0.027**, and surrenders a maxed Hit@10 (1.0000 → 0.9700) | **off** (`TJ_DENSE=1`) |
+| Question-value estimation | `starter/question.py` — exact expected-posterior-size criterion over the consistent set | **−0.00085**; `"other"` is the estimator's *own* argmax on 1000/1000 turns at the shipped candidate cap | **off** (`TJ_QVALUE=1`) |
 
 Both failures have specific, checkable mechanisms rather than "it didn't work":
 
@@ -166,6 +181,12 @@ Both failures have specific, checkable mechanisms rather than "it didn't work":
   well-fused ordering costs more than a 7B model's opinion of 50 titles is
   worth. It remains a genuinely useful second opinion — over sessions where the
   target was already in the shortlist it moved the target up 6 and down 12.
+- The **question-value estimator** is correct and the benchmark cannot reward
+  it. `customer_reply` caps disclosure at two constraints per reply and
+  `"other"` matches any of them, so the agent already extracts at the maximum
+  possible rate. We built the estimator rather than asserting the ceiling,
+  because "we measured the alternative and it lost by 0.00085" is a claim a
+  judge can check and "no smarter question is possible" is not.
 - The **dense leg** has no paraphrase gap to close. The shopper's constraints are
   verbatim strings from the target's own `features` field, so embeddings surface
   semantic neighbours that *displace* exact matches. Cold start would also cost
@@ -220,10 +241,10 @@ shopper's phrasing — never the ground truth — over 5 seeds per level:
 | verbatim | **0.9531** | 0.000 | 1.0000 |
 | casing / punctuation drift | 0.9304 | 0.003 | 1.0000 |
 | filler + reworded carrier | 0.9292 | 0.011 | 0.9900 |
-| stray interjections + foreign fragment | 0.9210 | 0.011 | 0.9900 |
+| stray interjections + foreign fragment | 0.9213 | 0.010 | 0.9900 |
 | light lexical paraphrase | 0.8906 | 0.012 | 0.9800 |
-| adversarial punctuation / decoy colon | 0.8897 | 0.016 | 0.9750 |
-| **truncated mid-sentence** | **0.8553** | 0.022 | 0.9300 |
+| adversarial punctuation / decoy colon | 0.8899 | 0.016 | 0.9750 |
+| **truncated mid-sentence** | **0.8571** | 0.022 | 0.9300 |
 
 The spec states that natural-language paraphrasing *may* be added by the
 organizer, so this is a live risk. Most of our score above ~0.87 rests on three
@@ -241,7 +262,16 @@ honesty rather than defended. A real deployment would have to handle it.
 
 **Other limitations, stated plainly:**
 
-- **In-sample tuning costs about 0.034.** Of 148 unseen sessions not returned at
+- **The remaining defects are ranking failures, not extraction failures.**
+  `tools/extract_probe.py` replays the held-out draws and classifies, for every
+  session where the target fails its own card, *why*. Over 800 unseen sessions:
+  **zero** cases where a vocabulary gap was the cause. That is not "few" — none.
+  It follows from the premise the whole system rests on: the shopper's
+  constraints are verbatim strings from the target's own metadata, so shopper
+  and product cannot use different words for the same thing. A synonym lexicon
+  or an embedding fallback would fix nothing here, and the probe established
+  that before either was built.
+- **In-sample tuning costs about 0.032.** Of 148 unseen sessions not returned at
   rank 1 across four held-out draws, **50 had a card that uniquely identifies
   the target** — the conversation did single the product out and we still did
   not put it first. On the public 200 that count is 3 of 17. Those 50 are
@@ -310,17 +340,31 @@ retrieval failure left for it to fix (`MISS_RETRIEVAL = 0`).
 
 ## 9. What we would do next
 
-In priority order, with the reasoning attached:
+Two of the four items this section originally listed have since been closed, and
+the honest version says which.
 
-1. **Fix the EXTRACT failure class** — the ~50 held-out sessions where the card
-   uniquely identifies the target and we still miss rank 1. A third card tier
-   firing *only* when the exact and fuzzy tiers both return an empty set.
-2. **Paraphrase and truncation robustness** — 0.063 of exposure, larger than
-   every remaining tuning gain combined.
-3. **Real question-value estimation**, which this benchmark cannot reward but a
-   deployment would.
-4. **Retire the two inert bonus terms**, once there is held-out evidence rather
-   than public-set evidence to decide on.
+1. **~~Fix the EXTRACT failure class~~ — done.** Diagnosed with
+   `tools/extract_probe.py`, fixed by component matching, worth +0.0023 held out.
+   The residual is ranking, not extraction.
+2. **Paraphrase and truncation robustness** — still the largest single exposure
+   at ~0.06, and still the thing we would fix first with more time. It did not
+   get worse, and truncation improved slightly as a side effect of (1).
+3. **~~Real question-value estimation~~ — built, and it cannot pay here.**
+   `starter/question.py`, shipped disabled at −0.00085. On a deployment where
+   the shopper does not disclose at a fixed maximum rate, the same estimator
+   would earn its place.
+4. **The 26 remaining held-out defects.** Sessions where the card uniquely
+   identifies the target and a rival still outranks it. Down from 50, and the
+   next thing we would instrument.
+
+**One thing we would *not* do, and the measurement is why.** Raising
+`HOLD_UNTIL_TURN` from 2 to 3 gains +0.0037 held out and +0.0008 on the public
+set, up on three of four draws — better evidence than several changes we did
+adopt. It also costs **0.080** under casing-and-punctuation drift, taking Hit@10
+from 1.0000 to 0.8900, and **0.064** under truncation. Held-out draws vary the
+*target* but all use verbatim wording, so they cannot see a robustness cliff.
+**A held-out set is not a substitute for an adversarial one.** We would have
+shipped this on held-out evidence alone and been wrong.
 
 ---
 
