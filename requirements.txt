@@ -10,7 +10,7 @@
 #
 # Optional, development only -- not needed to run or score the agent:
 #
-#   pytest        # to run tests/ (3 tests, all pass)
+#   pytest        # to run tests/ (167 tests, all pass)
 #
 # Optional, opt-in only -- the dense retrieval route, off unless TJ_DENSE=1:
 #

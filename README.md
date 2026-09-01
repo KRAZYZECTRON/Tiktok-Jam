@@ -27,6 +27,14 @@ rather than in a footnote is that we would rather a judge learn it from us.
 Per-scenario, and the full change history with every intermediate measurement,
 are in [`SCOREBOARD.md`](SCOREBOARD.md).
 
+## Demo
+
+**[Shopping Copilot — TikTok TechJam 2026 Track 4](https://youtu.be/EssSwi22WvA)** (3 min)
+
+A walkthrough of the scored path: a real session turn by turn, the tests, and
+the evaluator run that produces the number above. `DEMO_SCRIPT.md` is the
+shooting script, including which commands were fast enough to run on camera.
+
 ## Requirements
 
 - **Python 3.10+** (developed and scored on 3.14.4)
@@ -413,6 +421,23 @@ Robustness here was free rather than profitable, which is the honest claim.
 | `SCOREBOARD.md` | every measurement, including retired claims |
 | `NOTES_*.md` | per-seat working logs — what was tried and why |
 | `evaluator/`, `data/` | organizer-supplied, unmodified |
+
+## Team contributions
+
+| | |
+|---|---|
+| **Vishwak** | Ranking pipeline (`ranking.py`, `simcard.py`), the invertible-simulator result and post-fusion layer, agent orchestration, robustness hardening, the verification tooling (`verify_claims`, `stability`, `holdout_synth`, `robustness`, `perf`), integration and all merges to `main` |
+| **Zou Yuyang** | Dialog state machine — slot accumulation, intent-override erasure, `ask_attribute` selection, dead-turn rotation |
+| **Bhao Tanush** | Dialog state machine, alongside the above |
+| **Chetan** | Hybrid retrieval branch — Buying/Browsing intent routing (merged and active) and the dense/vector leg (merged, measured, shipped off) |
+
+The retrieval seat's dense leg is a **measured negative result, not a wasted
+seat**: it was built, evaluated against the current pipeline, and rejected on
+evidence, and `tools/attribution.py` independently confirmed there was no
+retrieval failure left for it to fix (`MISS_RETRIEVAL = 0`).
+
+Per-seat working logs are in `NOTES_*.md`; [`REPORT.md`](REPORT.md) §8 carries
+the same table.
 
 ---
 

@@ -89,6 +89,14 @@ learning that gap from their own terminal.
 Zero misses on the public set across all four scenarios: buying, browsing,
 intent override, and boundary.
 
+## Demo video
+
+**https://youtu.be/EssSwi22WvA** — *Shopping Copilot — TikTok TechJam 2026 Track 4* (3 min)
+
+Track 4 is a backend track, so this is the walkthrough the spec permits in
+place of a front-end demo: a real session turn by turn, the test suite, and
+the evaluator run that produces the reported score.
+
 ## How it addresses the four pillars
 
 | Pillar | Where it lives | What it does |

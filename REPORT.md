@@ -312,8 +312,8 @@ claim is itself automated:
 
 | | |
 |---|---|
-| `py -m pytest tests/ -q` | **167 tests**, 0.2 s |
-| `py -m tools.verify_claims` | re-runs **20 documented claims** against a fresh evaluation; exits non-zero on drift |
+| `py -m pytest tests/ -q` | **167 tests**, 3.6 s |
+| `py -m tools.verify_claims` | re-runs **21 documented claims** against a fresh evaluation; exits non-zero on drift |
 | `py -m tools.stability` | 200 random split-halves per shipped choice |
 | `py -m tools.holdout_synth` | scores on catalog targets the tuning never saw |
 | `py -m tools.robustness` | 7 perturbation styles, multi-seed |
